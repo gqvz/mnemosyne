@@ -1,0 +1,34 @@
+{
+  "name": "@mnemosyne/sdk",
+  "version": "0.1.0",
+  "description": "Mnemosyne SDK — Persistent Memory Fabric for Autonomous Agent Swarms",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./core": "./dist/core/index.js",
+    "./agents": "./dist/agents/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "scout": "node dist/agents/scout.js",
+    "strategist": "node dist/agents/strategist.js",
+    "executor": "node dist/agents/executor.js",
+    "e2e": "node dist/e2e.js"
+  },
+  "dependencies": {
+    "@mysten/sui": "^2.17.0",
+    "@mysten-incubation/memwal": "^0.0.6",
+    "@mysten/walrus": "^1.1.7",
+    "@mysten/seal": "^1.1.3",
+    "zod": "^3.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

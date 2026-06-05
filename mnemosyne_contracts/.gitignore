@@ -1,0 +1,18 @@
+# Move build artifacts
+build/
+traces/
+.trace
+.coverage*
+
+# Sui deployment artifacts (keep Move.lock and Move.toml)
+Pub.*.toml
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+._*
+Thumbs.db
