@@ -96,14 +96,13 @@ export function CausalGraph({ memories, selectedId, onSelect }: Props) {
     return (
       <div style={styles.container}>
         <div style={styles.header}>
-          <span style={{ fontSize: 14 }}>&#128279;</span>
-          <span style={styles.headerText}>Causal Graph</span>
+          <span style={styles.headerText} className="font-mono text-glow-purple">CAUSAL_GRAPH</span>
         </div>
         <div className="empty-state" style={{ flex: 1 }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>&#127760;</div>
-          <div style={{ fontSize: "var(--text-sm)", fontWeight: 500 }}>No connections yet</div>
-          <div style={{ fontSize: "var(--text-xs)", marginTop: 4 }}>
-            The causal graph will appear here as memories are linked.
+          <div style={{ fontSize: 24, marginBottom: 8, filter: "drop-shadow(0 0 10px rgba(176,80,255,0.4))" }}>&#10022;</div>
+          <div className="font-mono" style={{ fontSize: "var(--text-sm)", color: "var(--accent-purple)" }}>NO TOPOLOGY</div>
+          <div style={{ fontSize: "var(--text-xs)", marginTop: 8, opacity: 0.6 }}>
+            The causal graph will synthesize as memories interlink.
           </div>
         </div>
       </div>
@@ -113,14 +112,13 @@ export function CausalGraph({ memories, selectedId, onSelect }: Props) {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <span style={{ fontSize: 14 }}>&#128279;</span>
-        <span style={styles.headerText}>Causal Graph</span>
+        <span style={styles.headerText} className="font-mono text-glow-purple">CAUSAL_GRAPH</span>
         <span style={styles.legend}>
           {(["observation", "decision", "artifact"] as const).map((t) => {
             const { color, label } = getMemoryDisplay(t);
             return (
-              <span key={t} style={styles.legendItem}>
-                <span style={{ ...styles.legendDot, background: color }} />
+              <span key={t} style={styles.legendItem} className="font-mono">
+                <span style={{ ...styles.legendDot, background: color, boxShadow: `0 0 8px ${color}` }} />
                 {label}
               </span>
             );
@@ -130,11 +128,18 @@ export function CausalGraph({ memories, selectedId, onSelect }: Props) {
       <div ref={containerRef} style={styles.graphArea} className="graph-canvas">
         <svg style={{ width: "100%", height: "100%" }}>
           <defs>
-            <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-              <polygon points="0 0, 8 3, 0 6" fill="#3a3a55" />
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="28" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="rgba(0, 229, 255, 0.4)" />
             </marker>
             <filter id="glow">
-              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="linkGlow">
+              <feGaussianBlur stdDeviation="2" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -150,8 +155,9 @@ export function CausalGraph({ memories, selectedId, onSelect }: Props) {
               <line
                 key={`link-${i}`}
                 x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-                stroke="#3a3a55" strokeWidth={2}
+                stroke="rgba(0, 229, 255, 0.2)" strokeWidth={1.5}
                 markerEnd="url(#arrow)"
+                style={{ filter: "url(#linkGlow)" }}
               />
             );
           })}
@@ -180,16 +186,16 @@ export function CausalGraph({ memories, selectedId, onSelect }: Props) {
                   cx={n.x} 
                   cy={n.y} 
                   r={R} 
-                  fill={sel ? n.color : "#1a1a26"} 
+                  fill={sel ? "rgba(20,20,30,0.8)" : "rgba(10,10,15,0.6)"} 
                   stroke={n.color} 
-                  strokeWidth={sel ? 3 : 1.5}
-                  style={{ transition: "fill 150ms ease-out, stroke-width 150ms ease-out, filter 150ms ease-out" }}
+                  strokeWidth={sel ? 2.5 : 1.5}
+                  style={{ backdropFilter: "blur(4px)" }}
                 />
-                <text x={n.x} y={n.y - 4} textAnchor="middle" fill="var(--text-primary)" fontSize={11} fontWeight={600}>
+                <text x={n.x} y={n.y - 4} textAnchor="middle" fill="var(--text-primary)" fontSize={11} fontWeight={700} className="font-mono" style={{ letterSpacing: "0.1em" }}>
                   {n.memoryType.slice(0, 3).toUpperCase()}
                 </text>
-                <text x={n.x} y={n.y + 12} textAnchor="middle" fill="var(--text-muted)" fontSize={10} fontFamily="'JetBrains Mono', monospace" style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {n.blobId.slice(0, 10)}
+                <text x={n.x} y={n.y + 14} textAnchor="middle" fill="var(--text-muted)" fontSize={9} className="font-mono">
+                  {n.blobId.slice(0, 8)}
                 </text>
               </g>
             );
@@ -202,10 +208,22 @@ export function CausalGraph({ memories, selectedId, onSelect }: Props) {
 
 const styles: Record<string, React.CSSProperties> = {
   container: { height: "100%", display: "flex", flexDirection: "column" },
-  header: { display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--border)" },
-  headerText: { fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--text-primary)", flex: 1 },
+  header: { 
+    display: "flex", 
+    alignItems: "center", 
+    justifyContent: "space-between",
+    padding: "16px 20px", 
+    borderBottom: "1px solid var(--border)",
+    background: "rgba(2, 2, 4, 0.4)",
+  },
+  headerText: { 
+    fontSize: "var(--text-xs)", 
+    fontWeight: 700, 
+    color: "var(--text-primary)", 
+    letterSpacing: "0.15em",
+  },
   legend: { display: "flex", gap: 16, alignItems: "center" },
-  legendItem: { display: "flex", alignItems: "center", gap: 4, fontSize: "var(--text-xs)", color: "var(--text-muted)", fontWeight: 500 },
-  legendDot: { width: 8, height: 8, borderRadius: "50%" },
+  legendItem: { display: "flex", alignItems: "center", gap: 6, fontSize: "9px", color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" },
+  legendDot: { width: 6, height: 6, borderRadius: "50%" },
   graphArea: { flex: 1, overflow: "auto", position: "relative" },
 };

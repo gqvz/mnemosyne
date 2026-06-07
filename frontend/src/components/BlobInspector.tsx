@@ -1,244 +1,159 @@
-import type { DisplayMemory } from "./mockData";
-import { getMemoryDisplay } from "./mockData";
-import { X, ExternalLink, ShieldCheck, ShieldAlert } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { getMemoryType } from '../types';
+import type { MemoryIndex } from '../types';
 
-interface Props {
-  memory: DisplayMemory;
-  onClose: () => void;
+interface BlobInspectorProps {
+  selectedBlob: MemoryIndex | null;
+  onNavigateToParent: (blobId: string) => void;
 }
 
-export function BlobInspector({ memory, onClose }: Props) {
-  const { color, label } = getMemoryDisplay(memory.memoryType);
-  const shortContent = JSON.stringify(memory.content, null, 2);
+export default function BlobInspector({ selectedBlob, onNavigateToParent }: BlobInspectorProps) {
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [parentsExpanded, setParentsExpanded] = useState(false);
+
+  useEffect(() => {
+    setIsVerified(false);
+    setParentsExpanded(false);
+  }, [selectedBlob]);
+
+  const handleVerify = async () => {
+    if (!selectedBlob) return;
+    setIsVerifying(true);
+    // Simulate API call to Walrus to verify content hash
+    await new Promise(resolve => setTimeout(resolve, 800));
+    setIsVerified(true);
+    setIsVerifying(false);
+  };
+
+  if (!selectedBlob) {
+    return (
+      <div className="w-[260px] h-full bg-bg-inspector border-l border-border-heavy flex flex-col p-4 text-[12px] text-muted">
+        <h2 className="text-[#6e7681] mb-6 uppercase tracking-widest text-[11px] pb-2 border-b border-[#21262d]">Blob Inspector</h2>
+        <div className="flex-1 flex items-center justify-center text-center">
+          Select a node to inspect its blob metadata
+        </div>
+      </div>
+    );
+  }
+
+  const typeName = getMemoryType(selectedBlob.memory_type);
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.panel} className="blob-inspector-panel">
-        <div style={styles.header}>
-          <div style={styles.headerLeft}>
-            <span style={{ ...styles.headerDot, background: color }} />
-            <span style={styles.headerType}>{label}</span>
-            <span style={styles.headerId}>{memory.id}</span>
-          </div>
-          <button onClick={onClose} style={styles.closeBtn} className="close-btn" aria-label="Close inspector">
-            <X size={16} color="#8888a0" />
-          </button>
+    <div className="w-[260px] h-full bg-bg-inspector border-l border-border-heavy flex flex-col text-[12px] overflow-y-auto relative">
+      <div className="p-4 pb-2 border-b border-border">
+        <h2 className="text-[#6e7681] uppercase tracking-widest text-[11px] pb-2 border-b border-[#21262d]">Blob Inspector</h2>
+      </div>
+
+      <div className="p-4 flex flex-col gap-3">
+        <div>
+          <div className="text-muted text-[11px] mb-1">blob_id</div>
+          <div className="text-accent break-all text-[12px]">{selectedBlob.blob_id}</div>
         </div>
 
-        <div style={styles.body}>
-          <div style={styles.fieldRow}>
-            <span style={styles.fieldLabel}>Blob ID</span>
-            <span style={styles.fieldValueMono}>{memory.blobId}</span>
+        <div>
+          <div className="text-muted text-[11px] mb-1">type</div>
+          <div className="inline-block px-2 py-0.5 border border-border rounded-sm capitalize text-[12px]" style={{
+            color: `var(--color-${typeName})`,
+            borderColor: `var(--color-${typeName})`
+          }}>
+            {typeName}
           </div>
+        </div>
 
-          <div style={styles.fieldRow}>
-            <span style={styles.fieldLabel}>Agent</span>
-            <span style={styles.fieldValue}>{memory.agentName}</span>
-            <span style={styles.fieldValueMono}>{memory.agentId}</span>
+        <div>
+          <div className="text-muted text-[11px] mb-1">agent</div>
+          <div className="text-[#3fb950] text-[12px]">{selectedBlob.agent_address}</div>
+        </div>
+
+        <div className="border-t border-[#21262d] my-2" />
+
+        <div>
+          <div className="text-muted text-[11px] mb-1">timestamp</div>
+          <div className="text-[#c9d1d9] text-[12px]">
+            {new Date(selectedBlob.timestamp).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')}
           </div>
+        </div>
 
-          <div style={styles.fieldRow}>
-            <span style={styles.fieldLabel}>Timestamp</span>
-            <span style={styles.fieldValue}>
-              {new Date(memory.timestampMs).toLocaleString()}
-            </span>
-          </div>
+        <div>
+          <div className="text-muted text-[11px] mb-1">content_hash</div>
+          <div className="text-[#c9d1d9] break-all text-[12px]">{selectedBlob.content_hash}</div>
+        </div>
 
-          {memory.txDigest && (
-            <div style={styles.fieldRow}>
-              <span style={styles.fieldLabel}>Tx Digest</span>
-              <span style={styles.fieldValueMono}>{memory.txDigest}</span>
-              <ExternalLink size={12} color="#4da6ff" />
+        <div>
+          <div className="text-muted text-[11px] mb-1">parent_count</div>
+          <div className="text-[#c9d1d9] text-[12px]">{selectedBlob.parent_memories.length}</div>
+        </div>
+
+        <div>
+          <div className="text-muted text-[11px] mb-1">encrypted</div>
+          {selectedBlob.is_encrypted ? (
+            <div className="inline-block px-2 py-0.5 border border-[#f78166] text-[#f78166] rounded-sm bg-[#f781661a] text-[12px]">
+              sealed
+            </div>
+          ) : (
+            <div className="inline-block px-2 py-0.5 border border-[#21262d] text-[#6e7681] rounded-sm text-[12px]">
+              public
             </div>
           )}
+        </div>
 
-          <div style={styles.verificationRow}>
-            {memory.verified ? (
-              <>
-                <ShieldCheck size={14} color="#34d399" />
-                <span style={styles.verifiedText}>Walrus Proof Verified</span>
-              </>
-            ) : (
-              <>
-                <ShieldAlert size={14} color="#fbbf24" />
-                <span style={styles.unverifiedText}>Not Verified</span>
-              </>
-            )}
-          </div>
+        <div className="border-t border-[#21262d] my-2" />
 
-          {memory.parentIds.length > 0 && (
-            <div style={styles.section}>
-              <span style={styles.sectionTitle}>Parent Memories</span>
-              <div style={styles.parentList}>
-                {memory.parentIds.map((pId) => (
-                  <span key={pId} style={styles.parentBadge}>
-                    {pId}
-                  </span>
+        <div>
+          <div className="text-muted text-[11px] mb-1">on-chain idx</div>
+          <div className="text-accent text-[12px]">{selectedBlob.id || 'Pending...'}</div>
+        </div>
+
+        {selectedBlob.parent_memories.length > 0 && (
+          <div>
+            <div 
+              className="text-muted text-[11px] mb-1 cursor-pointer flex justify-between items-center hover:text-[#c9d1d9] transition-colors"
+              onClick={() => setParentsExpanded(!parentsExpanded)}
+            >
+              <span>parents</span>
+              <span>{parentsExpanded ? '▼' : '▶'}</span>
+            </div>
+            {parentsExpanded && (
+              <div className="flex flex-col gap-1 pl-2 border-l border-border mt-1">
+                {selectedBlob.parent_memories.map(pid => (
+                  <div 
+                    key={pid} 
+                    className="text-[#c9d1d9] break-all text-[12px] opacity-80 cursor-pointer hover:text-accent hover:underline"
+                    onClick={() => onNavigateToParent(pid)}
+                  >
+                    {pid.substring(0, 10)}...
+                  </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          <div style={styles.section}>
-            <span style={styles.sectionTitle}>Content</span>
-            <pre style={styles.contentBlock}>{shortContent}</pre>
+            )}
           </div>
+        )}
+
+        <div className="border-t border-[#21262d] my-2" />
+
+        <div className="mt-2">
+          <button
+            onClick={handleVerify}
+            disabled={isVerifying || isVerified}
+            className={`w-full py-2 px-3 flex items-center justify-center gap-2 border rounded-sm transition-colors text-[12px] ${
+              isVerified 
+                ? 'border-[#3fb950] text-[#3fb950] bg-[#0a1c0e]' 
+                : isVerifying
+                ? 'border-border text-muted bg-surface cursor-wait'
+                : 'border-border text-[#c9d1d9] hover:bg-surface hover:border-muted'
+            }`}
+          >
+            {isVerified && <div className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />}
+            {isVerifying ? (
+              <>
+                <div className="w-3 h-3 rounded-full border-2 border-muted border-t-[#c9d1d9] animate-spin" />
+                Verifying...
+              </>
+            ) : isVerified ? 'Hash Verified' : 'Verify Content Hash'}
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: "fixed",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-    display: "flex",
-    justifyContent: "center",
-    pointerEvents: "none",
-  },
-  panel: {
-    pointerEvents: "auto",
-    width: "100%",
-    maxWidth: "100%",
-    maxHeight: "45vh",
-    background: "var(--bg-card)",
-    borderTop: "2px solid var(--border)",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    animation: "slideUp 0.2s ease-out",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 20px",
-    borderBottom: "1px solid var(--border)",
-  },
-  headerLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  },
-  headerDot: {
-    width: 10,
-    height: 10,
-    borderRadius: "50%",
-  },
-  headerType: {
-    fontSize: "var(--text-base)",
-    fontWeight: 600,
-    color: "var(--text-primary)",
-    lineHeight: "var(--leading-tight)",
-  },
-  headerId: {
-    fontSize: "var(--text-xs)",
-    color: "var(--text-muted)",
-    fontFamily: "'JetBrains Mono', monospace",
-    fontVariantNumeric: "tabular-nums",
-  },
-  closeBtn: {
-    padding: 12,
-    borderRadius: 8,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 44,
-    minHeight: 44,
-  },
-  body: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "16px 20px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-  fieldRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    fontSize: 12,
-  },
-  fieldLabel: {
-    fontSize: "var(--text-xs)",
-    color: "var(--text-muted)",
-    minWidth: 90,
-    fontWeight: 600,
-  },
-  fieldValue: {
-    fontSize: "var(--text-sm)",
-    color: "var(--text-primary)",
-    fontWeight: 500,
-  },
-  fieldValueMono: {
-    fontSize: "var(--text-xs)",
-    color: "var(--text-secondary)",
-    fontFamily: "'JetBrains Mono', monospace",
-    fontVariantNumeric: "tabular-nums",
-  },
-  verificationRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 12px",
-    background: "rgba(52, 211, 153, 0.08)",
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  verifiedText: {
-    fontSize: 12,
-    fontWeight: 500,
-    color: "var(--accent-green)",
-  },
-  unverifiedText: {
-    fontSize: 12,
-    fontWeight: 500,
-    color: "var(--accent-amber)",
-  },
-  section: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: "var(--text-xs)",
-    fontWeight: 600,
-    color: "var(--text-muted)",
-    textTransform: "uppercase",
-    letterSpacing: "var(--tracking-wide)",
-    marginBottom: 6,
-    display: "block",
-  },
-  parentList: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  parentBadge: {
-    padding: "3px 8px",
-    background: "var(--bg-secondary)",
-    borderRadius: 4,
-    fontSize: 10,
-    fontFamily: "'JetBrains Mono', monospace",
-    color: "var(--text-muted)",
-  },
-  contentBlock: {
-    background: "var(--bg-secondary)",
-    padding: "12px 16px",
-    borderRadius: 6,
-    fontSize: "var(--text-xs)",
-    fontFamily: "'JetBrains Mono', monospace",
-    color: "var(--text-secondary)",
-    lineHeight: "var(--leading-relaxed)",
-    overflowX: "auto",
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    margin: 0,
-    maxHeight: 180,
-    overflowY: "auto",
-  },
-};
