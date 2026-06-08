@@ -100,7 +100,6 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
 
     const margin = { top: 40, right: 100, bottom: 40, left: 150 };
     const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
 
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -121,15 +120,16 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
       .domain(timeExtent)
       .range([0, innerWidth]);
 
-    const yScale = d3.scaleBand()
-      .domain(swimlanes)
-      .range([0, innerHeight])
-      .padding(0.1);
+    const swimlaneY: Record<string, number> = {
+      'scout-01':      100,
+      'strategist-01': 230,
+      'executor-01':   360,
+    };
 
     const nodes: NodeDatum[] = nodesData.map(n => ({
       id: n.id,
       x: xScale(n.memory.timestamp),
-      y: yScale(n.memory.agent_address)! + yScale.bandwidth() / 2,
+      y: swimlaneY[n.memory.agent_address] || 100,
       typeColor: n.typeColor,
       memory: n.memory
     }));
@@ -138,9 +138,7 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
     nodes.forEach(n => nodeMap.set(n.id, n));
 
     swimlanes.forEach(agent => {
-      const y = yScale(agent)!;
-      const bandHeight = yScale.bandwidth();
-      const midY = y + bandHeight / 2;
+      const midY = swimlaneY[agent] || 100;
 
       g.append('line')
         .attr('x1', 0)
@@ -151,15 +149,30 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
         .attr('stroke-dasharray', '4,4');
 
       g.append('text')
-        .attr('x', -10)
+        .attr('x', -20)
         .attr('y', midY)
         .attr('text-anchor', 'end')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', '#c9d1d9')
-        .attr('font-family', 'monospace')
-        .attr('font-size', '12px')
+        .attr('font-size', 11)
+        .attr('font-family', "'JetBrains Mono', monospace")
+        .attr('fill', '#484f58')
         .text(agent);
     });
+
+    const xAxis = d3.axisBottom(xScale)
+      .ticks(5)
+      .tickFormat(d => d3.timeFormat('%H:%M:%S')(d as Date));
+
+    const gX = svg.append('g')
+      .attr('transform', `translate(${margin.left}, ${height - 30})`)
+      .call(xAxis);
+      
+    gX.selectAll('text')
+      .attr('fill', '#484f58')
+      .attr('font-family', "'JetBrains Mono', monospace")
+      .attr('font-size', 10);
+      
+    gX.selectAll('.domain, .tick line').attr('stroke', '#21262d');
 
     svg.append('defs').selectAll('marker')
       .data(['arrow'])
@@ -205,9 +218,17 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
       .data(nodes)
       .join('g')
       .attr('class', 'node')
+      .attr('tabindex', 0)
       .attr('id', d => `node-tl-${d.id}`)
       .attr('transform', d => `translate(${d.x},${d.y})`)
       .style('cursor', 'pointer')
+      
+      .on('keydown', (event, d) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect(d.memory);
+        }
+      })
       .on('click', (event, d) => {
         if (event.defaultPrevented) return;
         onSelect(d.memory);
@@ -222,18 +243,25 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
         setHoveredNode(null);
       });
 
+    const TL_W = 80, TL_H = 24;
+
     nodeG.append('rect')
-      .attr('width', 16)
-      .attr('height', 16)
-      .attr('x', -8)
-      .attr('y', -8)
+      .attr('x', -TL_W/2).attr('y', -TL_H/2)
+      .attr('width', TL_W).attr('height', TL_H)
       .attr('rx', 3)
-      .attr('ry', 3)
       .attr('fill', '#161b22')
       .attr('stroke', d => d.id === selectedId ? '#ffffff' : d.typeColor)
       .attr('stroke-width', d => d.id === selectedId ? 2.5 : 1)
       .attr('filter', d => d.id === selectedId ? 'url(#glow-timeline)' : null)
       .style('transition', 'stroke 0.2s, stroke-width 0.2s');
+
+    nodeG.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', 11)
+      .attr('font-family', "'JetBrains Mono', monospace")
+      .attr('fill', d => d.typeColor)
+      .text(d => d.id.substring(0, 10));
 
   }, [nodesData, linksData, swimlanes, timeExtent, selectedId, onSelect]);
 

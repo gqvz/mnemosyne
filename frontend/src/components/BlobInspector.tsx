@@ -20,7 +20,6 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
   const handleVerify = async () => {
     if (!selectedBlob) return;
     setIsVerifying(true);
-    // Simulate API call to Walrus to verify content hash
     await new Promise(resolve => setTimeout(resolve, 800));
     setIsVerified(true);
     setIsVerifying(false);
@@ -28,10 +27,10 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
 
   if (!selectedBlob) {
     return (
-      <div className="w-[260px] h-full bg-bg-inspector border-l border-border-heavy flex flex-col p-4 text-[12px] text-muted">
-        <h2 className="text-[#6e7681] mb-6 uppercase tracking-widest text-[11px] pb-2 border-b border-[#21262d]">Blob Inspector</h2>
+      <div className="w-[260px] h-full bg-bg-inspector border-l border-border-heavy flex flex-col p-4 text-[12px]">
+        <h2 className="label pb-2 mb-4 border-b border-[#21262d]">Blob Inspector</h2>
         <div className="flex-1 flex items-center justify-center text-center">
-          Select a node to inspect its blob metadata
+          <span className="meta text-center leading-relaxed">Select a node to inspect its blob metadata</span>
         </div>
       </div>
     );
@@ -42,89 +41,106 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
   return (
     <div className="w-[260px] h-full bg-bg-inspector border-l border-border-heavy flex flex-col text-[12px] overflow-y-auto relative">
       <div className="p-4 pb-2 border-b border-border">
-        <h2 className="text-[#6e7681] uppercase tracking-widest text-[11px] pb-2 border-b border-[#21262d]">Blob Inspector</h2>
+        <h2 className="label pb-2 border-b border-[#21262d]">Blob Inspector</h2>
       </div>
 
-      <div className="p-4 flex flex-col gap-3">
-        <div>
-          <div className="text-muted text-[11px] mb-1">blob_id</div>
-          <div className="text-accent break-all text-[12px]">{selectedBlob.blob_id}</div>
-        </div>
-
-        <div>
-          <div className="text-muted text-[11px] mb-1">type</div>
-          <div className="inline-block px-2 py-0.5 border border-border rounded-sm capitalize text-[12px]" style={{
-            color: `var(--color-${typeName})`,
-            borderColor: `var(--color-${typeName})`
-          }}>
-            {typeName}
+      <div className="p-4 flex flex-col gap-4">
+        <section className="flex flex-col gap-2.5">
+          <h3 className="label">Identity</h3>
+          <div>
+            <div className="meta mb-0.5">blob_id</div>
+            <div className="text-accent break-all data">{selectedBlob.blob_id}</div>
           </div>
-        </div>
-
-        <div>
-          <div className="text-muted text-[11px] mb-1">agent</div>
-          <div className="text-[#3fb950] text-[12px]">{selectedBlob.agent_address}</div>
-        </div>
-
-        <div className="border-t border-[#21262d] my-2" />
-
-        <div>
-          <div className="text-muted text-[11px] mb-1">timestamp</div>
-          <div className="text-[#c9d1d9] text-[12px]">
-            {new Date(selectedBlob.timestamp).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')}
+          <div className="flex items-center gap-2">
+            <span className="meta">type</span>
+            <span className="inline-block px-2 py-0.5 rounded-sm data capitalize" style={{
+              color: `var(--color-${typeName})`,
+              border: `1px solid var(--color-${typeName})`,
+              backgroundColor: `color-mix(in srgb, var(--color-${typeName}) 12%, transparent)`
+            }}>
+              {typeName}
+            </span>
           </div>
-        </div>
+          <div>
+            <div className="meta mb-0.5">agent</div>
+            <div className="text-[#3fb950] data font-semibold">{selectedBlob.agent_address}</div>
+          </div>
+        </section>
 
-        <div>
-          <div className="text-muted text-[11px] mb-1">content_hash</div>
-          <div className="text-[#c9d1d9] break-all text-[12px]">{selectedBlob.content_hash}</div>
-        </div>
-
-        <div>
-          <div className="text-muted text-[11px] mb-1">parent_count</div>
-          <div className="text-[#c9d1d9] text-[12px]">{selectedBlob.parent_memories.length}</div>
-        </div>
-
-        <div>
-          <div className="text-muted text-[11px] mb-1">encrypted</div>
-          {selectedBlob.is_encrypted ? (
-            <div className="inline-block px-2 py-0.5 border border-[#f78166] text-[#f78166] rounded-sm bg-[#f781661a] text-[12px]">
-              sealed
+        <section className="flex flex-col gap-2.5">
+          <h3 className="label">Storage</h3>
+          <div>
+            <div className="meta mb-0.5">content_hash</div>
+            <div className="data break-all leading-relaxed">{selectedBlob.content_hash}</div>
+          </div>
+          <div>
+            <div className="meta mb-0.5">encrypted</div>
+            {selectedBlob.is_encrypted ? (
+              <span className="inline-block px-2 py-0.5 border border-[#f78166] text-[#f78166] rounded-sm bg-[#f781661a] data font-medium">
+                sealed
+              </span>
+            ) : (
+              <span className="inline-block px-2 py-0.5 border border-[#21262d] text-[#6e7681] rounded-sm data">
+                public
+              </span>
+            )}
+          </div>
+          <div>
+            <div className="meta mb-0.5">timestamp</div>
+            <div className="data tabular-nums">
+              {new Date(selectedBlob.timestamp).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')}
             </div>
-          ) : (
-            <div className="inline-block px-2 py-0.5 border border-[#21262d] text-[#6e7681] rounded-sm text-[12px]">
-              public
-            </div>
-          )}
-        </div>
+          </div>
+        </section>
 
-        <div className="border-t border-[#21262d] my-2" />
-
-        <div>
-          <div className="text-muted text-[11px] mb-1">on-chain idx</div>
-          <div className="text-accent text-[12px]">{selectedBlob.id || 'Pending...'}</div>
-        </div>
+        <section className="flex flex-col gap-2.5">
+          <h3 className="label">Chain</h3>
+          <div>
+            <div className="meta mb-0.5">on-chain idx</div>
+            <div className="text-accent data">{selectedBlob.id || 'Pending...'}</div>
+          </div>
+          <div>
+            <div className="meta mb-0.5">parent count</div>
+            <div className="data tabular-nums">{selectedBlob.parent_memories.length}</div>
+          </div>
+        </section>
 
         {selectedBlob.parent_memories.length > 0 && (
           <div>
             <div 
-              className="text-muted text-[11px] mb-1 cursor-pointer flex justify-between items-center hover:text-[#c9d1d9] transition-colors"
+              role="button"
+              tabIndex={0}
+              className="meta mb-0.5 cursor-pointer flex justify-between items-center hover:text-[#c9d1d9] transition-colors"
               onClick={() => setParentsExpanded(!parentsExpanded)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setParentsExpanded(!parentsExpanded); }}}
+              aria-expanded={parentsExpanded}
             >
-              <span>parents</span>
-              <span>{parentsExpanded ? '▼' : '▶'}</span>
+              <span className="meta">parents</span>
+              <span className="tabular-nums">{parentsExpanded ? '▼' : '▶'}</span>
             </div>
             {parentsExpanded && (
-              <div className="flex flex-col gap-1 pl-2 border-l border-border mt-1">
-                {selectedBlob.parent_memories.map(pid => (
+              <div className="pl-2 border-l border-border mt-1 overflow-hidden" style={{
+                animation: 'parent-expand-in var(--duration-reveal) var(--ease-out-expo) both'
+              }}>
+                <div className="flex flex-col gap-1" role="list">
+                  {selectedBlob.parent_memories.map(pid => (
                   <div 
-                    key={pid} 
-                    className="text-[#c9d1d9] break-all text-[12px] opacity-80 cursor-pointer hover:text-accent hover:underline"
+                    key={pid}
+                    role="listitem"
+                    tabIndex={0}
+                    className="cursor-pointer hover:underline transition-colors"
+                    style={{ 
+                      color: '#388bfd', fontSize: 11,
+                      padding: '2px 0',
+                      fontFamily: "'JetBrains Mono', monospace"
+                    }}
                     onClick={() => onNavigateToParent(pid)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToParent(pid); }}}
                   >
-                    {pid.substring(0, 10)}...
+                    → {pid.substring(0, 10)}...
                   </div>
                 ))}
+                </div>
               </div>
             )}
           </div>
@@ -136,7 +152,7 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
           <button
             onClick={handleVerify}
             disabled={isVerifying || isVerified}
-            className={`w-full py-2 px-3 flex items-center justify-center gap-2 border rounded-sm transition-colors text-[12px] ${
+            className={`w-full py-2 px-3 flex items-center justify-center gap-2 border rounded-sm transition-all duration-150 active:scale-[0.97] text-[12px] font-medium ${
               isVerified 
                 ? 'border-[#3fb950] text-[#3fb950] bg-[#0a1c0e]' 
                 : isVerifying
@@ -144,10 +160,10 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
                 : 'border-border text-[#c9d1d9] hover:bg-surface hover:border-muted'
             }`}
           >
-            {isVerified && <div className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />}
+            {isVerified && <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />}
             {isVerifying ? (
               <>
-                <div className="w-3 h-3 rounded-full border-2 border-muted border-t-[#c9d1d9] animate-spin" />
+                <span className="w-3 h-3 rounded-full border-2 border-muted border-t-[#c9d1d9] animate-spin" />
                 Verifying...
               </>
             ) : isVerified ? 'Hash Verified' : 'Verify Content Hash'}

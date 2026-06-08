@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import type { FilterState } from './Sidebar';
 import TopBar from './TopBar';
@@ -95,8 +95,16 @@ export default function MemoryBrowser() {
 
   useEffect(() => {
     setMemories(generateMockMemories());
-    // In a real app, this is where we would call MnemosyneClient
-    // client.listMemories(filters.namespace).then(setMemories)
+  }, []);
+
+  const handleViewChange = useCallback((view: ViewType) => {
+    if (!document.startViewTransition) {
+      setViewType(view);
+      return;
+    }
+    document.startViewTransition(() => {
+      setViewType(view);
+    });
   }, []);
 
   const availableAgents = ['scout-01', 'strategist-01', 'executor-01'];
@@ -136,33 +144,42 @@ export default function MemoryBrowser() {
           searchTerm={searchTerm} 
           onSearchChange={setSearchTerm} 
           viewType={viewType} 
-          onViewChange={setViewType} 
+          onViewChange={handleViewChange} 
           sortOrder={sortOrder}
           onSortChange={setSortOrder}
         />
         
-        <div className="flex-1 relative bg-bg-center">
-          {viewType === 'causal' && (
-            <MemoryGraph 
-              memories={filteredMemories} 
-              selectedId={selectedBlobId} 
-              onSelect={(m) => setSelectedBlobId(m.blob_id)} 
-            />
-          )}
-          {viewType === 'timeline' && (
-            <TimelineView
-              memories={filteredMemories}
-              selectedId={selectedBlobId}
-              onSelect={(m) => setSelectedBlobId(m.blob_id)}
-            />
-          )}
-          {viewType === 'grid' && (
-            <GridView
-              memories={filteredMemories}
-              selectedId={selectedBlobId}
-              onSelect={(m) => setSelectedBlobId(m.blob_id)}
-              sortOrder={sortOrder}
-            />
+        <div className="flex-1 relative bg-bg-center" style={{ viewTransitionName: 'view-switch' }}>
+          {filteredMemories.length === 0 ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span className="data text-muted">No matching memories</span>
+              <span className="meta text-center leading-relaxed px-4">Adjust filters or search term to see results</span>
+            </div>
+          ) : (
+            <>
+              {viewType === 'causal' && (
+                <MemoryGraph 
+                  memories={filteredMemories} 
+                  selectedId={selectedBlobId} 
+                  onSelect={(m) => setSelectedBlobId(m.blob_id)} 
+                />
+              )}
+              {viewType === 'timeline' && (
+                <TimelineView
+                  memories={filteredMemories}
+                  selectedId={selectedBlobId}
+                  onSelect={(m) => setSelectedBlobId(m.blob_id)}
+                />
+              )}
+              {viewType === 'grid' && (
+                <GridView
+                  memories={filteredMemories}
+                  selectedId={selectedBlobId}
+                  onSelect={(m) => setSelectedBlobId(m.blob_id)}
+                  sortOrder={sortOrder}
+                />
+              )}
+            </>
           )}
         </div>
         

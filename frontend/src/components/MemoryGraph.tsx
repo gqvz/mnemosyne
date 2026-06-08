@@ -1,6 +1,5 @@
 import { useEffect, useRef, useMemo, useState } from 'react';
 import * as d3 from 'd3';
-import dagre from 'dagre';
 import { getMemoryType } from '../types';
 import type { MemoryIndex } from '../types';
 
@@ -17,17 +16,9 @@ const TYPE_COLORS = {
   reflection: '#d2a8ff',
 };
 
-const TYPE_RANK_Y: Record<string, number> = {
-  observation: 100,
-  decision: 200, 
-  artifact: 300,
-  reflection: 380,
-};
-
 interface NodeDatum extends d3.SimulationNodeDatum {
   id: string;
-  dagre_x: number;
-  dagre_y: number;
+  depth: number;
   width: number;
   height: number;
   memory: MemoryIndex;
@@ -45,64 +36,48 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
   const [zoomLevel, setZoomLevel] = useState(1);
   const [hoveredNode, setHoveredNode] = useState<{ x: number; y: number; memory: MemoryIndex } | null>(null);
 
-  const { initialNodes, initialLinks, graphBBox } = useMemo(() => {
-    const g = new dagre.graphlib.Graph();
-    g.setGraph({ rankdir: 'LR', ranksep: 80, nodesep: 40 });
-    g.setDefaultEdgeLabel(() => ({}));
-
-    memories.forEach(m => {
-      g.setNode(m.blob_id, { width: 90, height: 26, memory: m });
+  const { initialNodes, initialLinks } = useMemo(() => {
+    // 1. Build basic nodes and links
+    const nodes = memories.map(m => {
+      const typeStr = getMemoryType(m.memory_type);
+      return {
+        id: m.blob_id,
+        depth: 0,
+        width: 90,
+        height: 26,
+        memory: m,
+        typeStr,
+        typeColor: TYPE_COLORS[typeStr as keyof typeof TYPE_COLORS]
+      } as NodeDatum;
     });
 
+    const links: EdgeDatum[] = [];
     memories.forEach(m => {
       m.parent_memories.forEach(parentId => {
         if (memories.find(pm => pm.blob_id === parentId)) {
-          g.setEdge(parentId, m.blob_id);
+          links.push({ source: parentId, target: m.blob_id });
         }
       });
     });
 
-    dagre.layout(g);
-
-    const outNodes: NodeDatum[] = g.nodes().map(v => {
-      const node = g.node(v) as any;
-      const typeStr = getMemoryType((node.memory as MemoryIndex).memory_type);
-      return {
-        id: v,
-        x: node.x,
-        y: node.y,
-        dagre_x: node.x,
-        dagre_y: TYPE_RANK_Y[typeStr] || node.y,
-        width: 90,
-        height: 26,
-        memory: node.memory as MemoryIndex,
-        typeStr,
-        typeColor: TYPE_COLORS[typeStr as keyof typeof TYPE_COLORS]
-      };
-    });
-
-    const outLinks: EdgeDatum[] = g.edges().map(e => ({
-      source: e.v,
-      target: e.w
-    }));
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    outNodes.forEach(n => {
-      if (n.dagre_x - n.width/2 < minX) minX = n.dagre_x - n.width/2;
-      if (n.dagre_x + n.width/2 > maxX) maxX = n.dagre_x + n.width/2;
-      if (n.dagre_y - n.height/2 < minY) minY = n.dagre_y - n.height/2;
-      if (n.dagre_y + n.height/2 > maxY) maxY = n.dagre_y + n.height/2;
-    });
-
-    if (minX === Infinity) {
-      minX = 0; minY = 0; maxX = 800; maxY = 600;
+    // 2. Compute depth for layout seeding
+    const memo: Record<string, number> = {};
+    function computeDepth(node: NodeDatum): number {
+      if (memo[node.id] !== undefined) return memo[node.id];
+      const parents = links.filter(e => e.target === node.id);
+      if (parents.length === 0) { memo[node.id] = 0; return 0; }
+      const maxParentDepth = Math.max(...parents.map(e => 
+        computeDepth(nodes.find(n => n.id === e.source)!)
+      ));
+      memo[node.id] = maxParentDepth + 1;
+      return memo[node.id];
     }
 
-    return { 
-      initialNodes: outNodes, 
-      initialLinks: outLinks, 
-      graphBBox: { x: minX, y: minY, width: maxX - minX, height: maxY - minY } 
-    };
+    nodes.forEach(n => {
+      n.depth = computeDepth(n);
+    });
+
+    return { initialNodes: nodes, initialLinks: links };
   }, [memories]);
 
   useEffect(() => {
@@ -111,14 +86,14 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
     
     d3.select(container).select('svg').remove();
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const svgWidth = container.clientWidth;
+    const svgHeight = container.clientHeight;
 
     const svg = d3.select(container)
       .append('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .attr('viewBox', `0 0 ${width} ${height}`);
+      .attr('width', svgWidth)
+      .attr('height', svgHeight)
+      .attr('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
 
     const innerG = svg.append('g').attr('class', 'graph-root');
 
@@ -132,16 +107,8 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
     
     svg.call(zoom);
 
-    const padding = 60;
-    const scale = Math.min(
-      (width - padding * 2) / (graphBBox.width || 1),
-      (height - padding * 2) / (graphBBox.height || 1),
-      1
-    );
-    const tx = (width - graphBBox.width * scale) / 2 - graphBBox.x * scale;
-    const ty = (height - graphBBox.height * scale) / 2 - graphBBox.y * scale;
-    
-    svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    // Initial transform to center graph slightly
+    svg.call(zoom.transform, d3.zoomIdentity.translate(0, 0));
 
     const defs = svg.append('defs');
     
@@ -167,7 +134,13 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
     });
 
-    const nodes = initialNodes.map(d => ({...d}));
+    // Seed positions based on depth
+    const maxDepth = Math.max(...initialNodes.map(n => n.depth), 1);
+    const nodes: NodeDatum[] = initialNodes.map(d => ({
+      ...d,
+      x: (d.depth / maxDepth) * (svgWidth * 0.8) + svgWidth * 0.1,
+      y: svgHeight / 2 + (Math.random() - 0.5) * 200,
+    }));
     const edges = initialLinks.map(d => ({...d}));
 
     const edgeSelection = innerG.append('g')
@@ -184,8 +157,16 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       .data(nodes)
       .join('g')
       .attr('class', 'node')
+      .attr('tabindex', 0)
       .attr('id', d => `node-${d.id}`)
       .style('cursor', 'pointer')
+      
+      .on('keydown', (event, d) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect(d.memory);
+        }
+      })
       .on('click', (event, d) => {
         if (event.defaultPrevented) return;
         onSelect(d.memory);
@@ -211,7 +192,7 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       .attr('stroke', d => d.id === selectedId ? '#ffffff' : d.typeColor)
       .attr('stroke-width', d => d.id === selectedId ? 2.5 : 1)
       .attr('filter', d => d.id === selectedId ? `url(#glow-${d.typeStr})` : null)
-      .style('transition', 'stroke 0.2s, stroke-width 0.2s');
+      .style('transition', 'stroke 200ms ease, stroke-width 200ms ease, filter 200ms ease');
 
     nodeG.append('text')
       .text(d => d.id.substring(0, 10))
@@ -222,18 +203,18 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       .attr('font-family', 'monospace')
       .style('pointer-events', 'none');
 
-    // Force Simulation
+    // Force Simulation (no forceX/Y, relies purely on link tension + body charge)
     const simulation = d3.forceSimulation<NodeDatum>(nodes)
       .force('link', d3.forceLink<NodeDatum, EdgeDatum>(edges)
         .id(d => d.id)
-        .distance(120)
-        .strength(0.8)
+        .distance(140)
+        .strength(0.6)
       )
-      .force('collide', d3.forceCollide(60))
-      .force('x', d3.forceX<NodeDatum>(d => d.dagre_x).strength(0.4))
-      .force('y', d3.forceY<NodeDatum>(d => d.dagre_y).strength(0.4))
-      .alpha(0.6)
-      .alphaDecay(0.02)
+      .force('collide', d3.forceCollide(55))
+      .force('charge', d3.forceManyBody().strength(-200))
+      .force('center', d3.forceCenter(svgWidth / 2, svgHeight / 2).strength(0.05))
+      .alphaDecay(0.015)
+      .velocityDecay(0.4)
       .on('tick', () => {
         edgeSelection.attr('d', (e: any) => {
           const s = e.source as NodeDatum;
@@ -269,7 +250,7 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       simulation.stop();
     };
 
-  }, [initialNodes, initialLinks, graphBBox, selectedId, onSelect]);
+  }, [initialNodes, initialLinks, selectedId, onSelect]);
 
   return (
     <div className="w-full h-full bg-bg-center relative overflow-hidden text-[13px]">

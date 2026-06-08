@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -18,10 +18,24 @@
   --color-accent: #388bfd;
   --color-muted: #6e7681;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", monospace;
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --duration-press: 100ms;
+  --duration-hover: 150ms;
+  --duration-reveal: 200ms;
+  --duration-menu: 250ms;
+  --duration-expand: 300ms;
+  --duration-view: 350ms;
 }
 
 * {
   font-size-adjust: none;
+  font-variant-numeric: tabular-nums;
+}
+
+html, body, #root {
+  height: 100%;
 }
 
 body {
@@ -29,9 +43,139 @@ body {
   color: #c9d1d9;
   font-family: var(--font-mono);
   font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
   margin: 0;
   padding: 0;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.data {
+  font-size: 12px;
+  font-weight: 500;
+  color: #c9d1d9;
+}
+
+/*
+ * Focus architecture
+ * Consistent 2px offset ring, 3:1 contrast (#58a6ff on #0d1117), applied everywhere.
+ * Never outline:none without this replacement.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 1px;
+}
+
+/* Let Tailwind's own outline utilities override when explicitly set */
+.outline-none:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Interactive row — keyboard-accessible div-as-button */
+.interactive-row {
+  cursor: pointer;
+  user-select: none;
+  border-radius: 2px;
+}
+.interactive-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 0px;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.96); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes parent-expand-in {
+  from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+  to { opacity: 1; max-height: 200px; padding-top: 4px; padding-bottom: 0; }
+}
+
+.animate-fade-in {
+  animation: fade-in var(--duration-reveal) var(--ease-out-expo) both;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up var(--duration-reveal) var(--ease-out-expo) both;
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale var(--duration-reveal) var(--ease-out-expo) both;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 800ms linear infinite;
+}
+
+@keyframes view-enter {
+  from { opacity: 0; transform: scale(0.98); }
+}
+
+@keyframes view-exit {
+  to { opacity: 0; transform: scale(0.98); }
+}
+
+::view-transition-old(view-switch) {
+  animation: view-exit var(--duration-view) var(--ease-out-expo) both;
+}
+
+::view-transition-new(view-switch) {
+  animation: view-enter var(--duration-view) var(--ease-out-expo) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-spin-slow {
+    animation-duration: 2s !important;
+  }
+
+  ::view-transition-old(view-switch) {
+    animation: none;
+  }
+  ::view-transition-new(view-switch) {
+    animation: none;
+  }
 }
 
 ::-webkit-scrollbar {

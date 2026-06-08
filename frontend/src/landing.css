@@ -1,0 +1,180 @@
+.landing-root {
+  background-color: #0a0d12;
+  color: #c9d1d9;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Base resets */
+.landing-root h1, .landing-root h2, .landing-root h3, .landing-root p, .landing-root ul {
+  margin: 0;
+  font-weight: normal;
+}
+
+.landing-root a {
+  text-decoration: none;
+}
+
+/* Hero Section */
+.hero {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 55% 45%;
+  align-items: center;
+  padding: 0 8%;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, #21262d 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Buttons */
+.cta-primary {
+  display: inline-block;
+  border: 1px solid #388bfd;
+  color: #58a6ff;
+  background: transparent;
+  padding: 10px 22px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.cta-primary:hover {
+  background: rgba(56,139,253,0.08);
+  border-color: #58a6ff;
+}
+
+.cta-secondary {
+  display: inline-block;
+  border: 1px solid #30363d;
+  color: #6e7681;
+  background: transparent;
+  padding: 10px 22px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.cta-secondary:hover {
+  border-color: #6e7681;
+  color: #c9d1d9;
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid #21262d;
+  padding: 28px 8%;
+  position: relative;
+  z-index: 2;
+  background-color: #0a0d12;
+}
+.footer-inner {
+  display: flex; align-items: center;
+  gap: 16px; flex-wrap: wrap;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.footer-brand { color: #c9d1d9; font-size: 13px; font-weight: 500; }
+.footer-sep   { color: #30363d; }
+.footer-sub   { color: #484f58; font-size: 12px; }
+.footer-links { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+.footer-links a {
+  color: #6e7681; font-size: 12px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footer-links a:hover { color: #c9d1d9; }
+
+/* ---------------- DOCS ---------------- */
+.docs-root {
+  display: grid;
+  grid-template-rows: 36px 1fr;
+  height: 100vh;
+  font-family: 'JetBrains Mono', monospace;
+  background: #0a0d12;
+  color: #c9d1d9;
+  overflow: hidden;
+}
+.docs-topbar {
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  font-size: 12px;
+}
+.docs-body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  overflow: hidden;
+  height: 100%;
+}
+.docs-sidebar {
+  background: #0d1117;
+  border-right: 1px solid #21262d;
+  overflow-y: auto;
+  padding: 16px 0;
+}
+.docs-content {
+  overflow-y: auto;
+  padding: 40px 60px;
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+}
+
+.nav-item {
+  display: block;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: #6e7681;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  text-decoration: none;
+}
+.nav-item:hover { color: #c9d1d9; background: #0f1419; }
+.nav-item.active { color: #58a6ff; border-left-color: #58a6ff; background: #0d1f3c22; }
+
+.doc-h2 { font-size: 20px; color: #c9d1d9; margin: 0 0 16px; font-weight: 400; }
+.doc-h3 { font-size: 14px; color: #8b949e; margin: 24px 0 10px; font-weight: 400; }
+.doc-p  { font-size: 13px; color: #6e7681; line-height: 1.8; margin: 0 0 14px; }
+
+.problem-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.problem-table th {
+  font-size: 10px; color: #484f58; font-weight: 400;
+  letter-spacing: 0.1em; text-align: left;
+  border: 1px solid #21262d; padding: 8px 16px;
+}
+.problem-table td { border: 1px solid #21262d; padding: 10px 16px; transition: background 0.2s; }
+.problem-table td:nth-child(1) { color: #f78166; }
+.problem-table td:nth-child(2) { color: #484f58; }
+.problem-table td:nth-child(3) { color: #3fb950; }
+.problem-table tr:hover td { background: #0d1117; }
+
+

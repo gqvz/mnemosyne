@@ -27,7 +27,7 @@ export default function GridView({ memories, selectedId, onSelect, sortOrder }: 
 
   return (
     <div className="w-full h-full overflow-y-auto bg-bg-center p-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3" role="list">
         {sortedMemories.map(m => {
           const isSelected = m.blob_id === selectedId;
           const typeStr = getMemoryType(m.memory_type);
@@ -36,31 +36,32 @@ export default function GridView({ memories, selectedId, onSelect, sortOrder }: 
           return (
             <div
               key={m.blob_id}
+              role="listitem"
+              tabIndex={0}
               onClick={() => onSelect(m)}
-              className="flex flex-col rounded-sm cursor-pointer transition-all border"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(m); }}}
+              className="flex flex-col rounded-sm cursor-pointer transition-all duration-200 active:scale-[0.98] border"
               style={{
                 backgroundColor: isSelected ? '#161b22' : '#0d1117',
-                borderColor: typeColor,
-                opacity: 1, // wrapper opacity 1
-                border: `1px solid ${isSelected ? typeColor : typeColor + '66'}`, // 66 hex is ~40%, cc is ~80%
+                border: `1px solid ${isSelected ? typeColor : typeColor + '66'}`,
               }}
               onMouseEnter={(e) => {
                 if (!isSelected) {
                   e.currentTarget.style.backgroundColor = '#0f1419';
-                  e.currentTarget.style.border = `1px solid ${typeColor + 'b3'}`; // 70% opacity
+                  e.currentTarget.style.borderColor = typeColor;
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isSelected) {
                   e.currentTarget.style.backgroundColor = '#0d1117';
-                  e.currentTarget.style.border = `1px solid ${typeColor + '66'}`;
+                  e.currentTarget.style.borderColor = typeColor + '66';
                 }
               }}
             >
               <div className="p-3 pb-2 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
                   <div 
-                    className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm"
+                    className="label px-1.5 py-0.5 rounded-sm"
                     style={{ color: typeColor, backgroundColor: typeColor + '1a' }}
                   >
                     {typeStr}
@@ -72,28 +73,29 @@ export default function GridView({ memories, selectedId, onSelect, sortOrder }: 
                   />
                 </div>
                 
-                <div className="text-[#c9d1d9] font-bold text-sm mt-1 truncate">
+                <div className="text-[#c9d1d9] font-semibold text-sm mt-1 truncate">
                   {m.blob_id}
+                </div>
+                <div style={{ color: typeColor, fontSize: 11, marginTop: 2 }}>
+                  {m.agent_address}
                 </div>
               </div>
 
               <div className="border-t" style={{ borderColor: typeColor + '33' }} />
 
               <div className="p-3 pt-2 flex flex-col gap-1.5">
-                <div className="text-muted text-[11px] truncate" title={m.content_hash}>
+                <div className="meta truncate" title={m.content_hash}>
                   {m.content_hash}
                 </div>
-                <div className="text-muted text-[11px]">
+                <div className="meta tabular-nums">
                   {new Date(m.timestamp).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z')}
                 </div>
                 
-                <div className="flex justify-between items-center mt-2 text-[11px]">
-                  <div className="text-[#c9d1d9]">
-                    parents: {m.parent_memories.length}
-                  </div>
-                  <div className={m.is_encrypted ? "text-[#f78166]" : "text-muted"}>
-                    {m.is_encrypted ? '🔒 sealed' : '🔓 public'}
-                  </div>
+                <div className="flex justify-between items-center mt-2 data">
+                  <span className="tabular-nums">parents: {m.parent_memories.length}</span>
+                  <span className={m.is_encrypted ? "text-[#f78166] font-medium" : "text-muted"}>
+                    {m.is_encrypted ? 'sealed' : 'public'}
+                  </span>
                 </div>
               </div>
             </div>

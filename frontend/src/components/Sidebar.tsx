@@ -38,9 +38,9 @@ export default function Sidebar({ filters, onFilterChange, availableAgents }: Si
   return (
     <div className="w-[200px] h-full bg-bg-sidebar border-r border-border-heavy flex flex-col font-mono text-[12px] overflow-y-auto">
       <div className="p-3">
-        <h2 className="text-[11px] text-[#484f58] uppercase tracking-widest px-1 py-1 mb-1">Namespace</h2>
+        <h2 className="label pb-1 mb-1">Namespace</h2>
         <select 
-          className="w-full bg-surface border border-border text-[#c9d1d9] p-1.5 rounded-sm outline-none focus:border-accent text-[12px]"
+          className="w-full bg-surface border border-border text-[#c9d1d9] p-1.5 rounded-sm outline-none focus:border-accent text-[12px] font-medium"
           value={filters.namespace}
           onChange={(e) => onFilterChange({ ...filters, namespace: e.target.value })}
         >
@@ -50,87 +50,102 @@ export default function Sidebar({ filters, onFilterChange, availableAgents }: Si
         </select>
       </div>
 
-      <div className="text-[11px] text-[#484f58] tracking-widest uppercase px-3 py-1 mt-1 border-t border-border">
-        Agents
-      </div>
-      <div className="px-3 pb-3 pt-1 flex flex-col gap-2">
+      <div className="label mt-1 border-t border-border px-3 pt-2 pb-1">Agents</div>
+      <div className="px-3 pb-3 pt-1 flex flex-col gap-2" role="list">
         {availableAgents.map(agent => {
           const enabled = filters.agents.includes(agent);
           const color = '#c9d1d9';
           return (
-            <div key={agent} className="flex items-center gap-2 hover:text-accent transition-colors" onClick={() => toggleAgent(agent)}>
+            <div
+              key={agent}
+              role="listitem"
+              tabIndex={0}
+              className="flex items-center gap-2 hover:text-accent transition-all duration-150 active:scale-[0.97] select-none interactive-row py-0.5"
+              onClick={() => toggleAgent(agent)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAgent(agent); }}}
+              aria-pressed={enabled}
+            >
               <div 
                 style={{
                   width: 12, height: 12,
                   borderRadius: 2,
                   border: `1px solid ${color}`,
-                  background: enabled ? color + '33' : 'transparent',
-                  cursor: 'pointer',
+                  background: enabled ? color : 'transparent',
                   flexShrink: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
               >
-                {enabled && <span style={{color: color, fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
+                {enabled && <span style={{color: '#0d1117', fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
               </div>
-              <span className="truncate cursor-pointer text-[12px]">{agent}</span>
+              <span className="truncate font-medium">{agent}</span>
             </div>
           );
         })}
       </div>
 
-      <div className="text-[11px] text-[#484f58] tracking-widest uppercase px-3 py-1 mt-1 border-t border-border">
-        Memory Type
-      </div>
-      <div className="px-3 pb-3 pt-1 flex flex-col gap-2">
+      <div className="label mt-1 border-t border-border px-3 pt-2 pb-1">Memory Type</div>
+      <div className="px-3 pb-3 pt-1 flex flex-col gap-2" role="list">
         {(Object.keys(typeColors) as MemoryType[]).map(type => {
           const enabled = filters.types.includes(type);
           const color = typeColors[type];
           return (
-            <div key={type} className="flex items-center gap-2 transition-colors" style={{ color }} onClick={() => toggleType(type)}>
+            <div
+              key={type}
+              role="listitem"
+              tabIndex={0}
+              className="flex items-center gap-2 transition-all duration-150 font-medium active:scale-[0.97] select-none interactive-row py-0.5"
+              style={{ color }}
+              onClick={() => toggleType(type)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleType(type); }}}
+              aria-pressed={enabled}
+            >
               <div 
                 style={{
                   width: 12, height: 12,
                   borderRadius: 2,
                   border: `1px solid ${color}`,
-                  background: enabled ? color + '33' : 'transparent',
-                  cursor: 'pointer',
+                  background: enabled ? color : 'transparent',
                   flexShrink: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
               >
-                {enabled && <span style={{color: color, fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
+                {enabled && <span style={{color: '#0d1117', fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
               </div>
-              <span className="capitalize cursor-pointer text-[12px]">{type}</span>
+              <span className="capitalize">{type}</span>
             </div>
           );
         })}
       </div>
 
-      <div className="text-[11px] text-[#484f58] tracking-widest uppercase px-3 py-1 mt-1 border-t border-border">
-        Filters
-      </div>
+      <div className="label mt-1 border-t border-border px-3 pt-2 pb-1">Filters</div>
       <div className="px-3 pb-3 pt-1">
-        <div className="flex items-center gap-2 hover:text-[#f78166] transition-colors text-[#c9d1d9]" onClick={() => onFilterChange({ ...filters, encryptedOnly: !filters.encryptedOnly })}>
+        <div
+          role="switch"
+          tabIndex={0}
+          className="flex items-center gap-2 hover:text-[#f78166] transition-all duration-150 active:scale-[0.97] select-none interactive-row py-0.5 text-[#c9d1d9] font-medium"
+          onClick={() => onFilterChange({ ...filters, encryptedOnly: !filters.encryptedOnly })}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFilterChange({ ...filters, encryptedOnly: !filters.encryptedOnly }); }}}
+          aria-checked={filters.encryptedOnly}
+        >
           <div 
             style={{
               width: 12, height: 12,
               borderRadius: 2,
               border: `1px solid #f78166`,
-              background: filters.encryptedOnly ? '#f7816633' : 'transparent',
-              cursor: 'pointer',
+              background: filters.encryptedOnly ? '#f78166' : 'transparent',
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
             }}
           >
-            {filters.encryptedOnly && <span style={{color: '#f78166', fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
+            {filters.encryptedOnly && <span style={{color: '#0d1117', fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
           </div>
-          <span className="cursor-pointer text-[12px]">encrypted only</span>
+          <span>encrypted only</span>
         </div>
       </div>
     </div>
