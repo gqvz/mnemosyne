@@ -126,24 +126,22 @@ export default function Sidebar({ filters, onFilterChange, availableAgents }: Si
         <div
           role="switch"
           tabIndex={0}
-          className="flex items-center gap-2 hover:text-[#f78166] transition-all duration-150 active:scale-[0.97] select-none interactive-row py-0.5 text-[#c9d1d9] font-medium"
-          onClick={() => onFilterChange({ ...filters, encryptedOnly: !filters.encryptedOnly })}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFilterChange({ ...filters, encryptedOnly: !filters.encryptedOnly }); }}}
-          aria-checked={filters.encryptedOnly}
+          className="flex items-center gap-2 select-none py-0.5 text-[#f78166] font-medium cursor-not-allowed"
+          aria-checked={true}
         >
           <div 
             style={{
               width: 12, height: 12,
               borderRadius: 2,
               border: `1px solid #f78166`,
-              background: filters.encryptedOnly ? '#f78166' : 'transparent',
+              background: '#f78166',
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
             }}
           >
-            {filters.encryptedOnly && <span style={{color: '#0d1117', fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
+            <span style={{color: '#0d1117', fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>
           </div>
           <span>encrypted only</span>
         </div>

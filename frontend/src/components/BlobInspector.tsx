@@ -8,48 +8,7 @@ interface BlobInspectorProps {
 }
 
 export default function BlobInspector({ selectedBlob, onNavigateToParent }: BlobInspectorProps) {
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [parentsExpanded, setParentsExpanded] = useState(false);
-
-
-
-  const handleVerify = async () => {
-    if (!selectedBlob) return;
-    setIsVerifying(true);
-    setIsVerified(false);
-    setVerifyError(null);
-    try {
-      if (selectedBlob.is_encrypted) {
-        // Skip verification for encrypted blobs because the frontend cannot decrypt SEAL 
-        // to compute the original plaintext content hash without the delegate key.
-        return;
-      }
-      
-      const response = await fetch(
-        `https://aggregator.walrus-testnet.walrus.space/v1/blobs/${selectedBlob.blob_id}`,
-      );
-      if (!response.ok) {
-        setVerifyError("Blob not publicly available on Walrus (may be in private MemWal storage)");
-        return;
-      }
-      const text = await response.text();
-      const memObj = JSON.parse(text);
-      const contentJson = JSON.stringify(memObj.content);
-      const encoder = new TextEncoder();
-      const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(contentJson));
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const computedHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-      setIsVerified(computedHash === selectedBlob.content_hash);
-    } catch (err) {
-      console.error("Blob verification failed:", err);
-      setVerifyError("Verification failed: could not fetch or parse blob");
-      setIsVerified(false);
-    } finally {
-      setIsVerifying(false);
-    }
-  };
 
   if (!selectedBlob) {
     return (
@@ -101,15 +60,9 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
           </div>
           <div>
             <div className="meta mb-0.5">encrypted</div>
-            {selectedBlob.is_encrypted ? (
-              <span className="inline-block px-2 py-0.5 border border-[#f78166] text-[#f78166] rounded-sm bg-[#f781661a] data font-medium">
-                sealed
-              </span>
-            ) : (
-              <span className="inline-block px-2 py-0.5 border border-[#21262d] text-[#6e7681] rounded-sm data">
-                public
-              </span>
-            )}
+            <span className="inline-block px-2 py-0.5 border border-[#f78166] text-[#f78166] rounded-sm bg-[#f781661a] data font-medium">
+              encrypted
+            </span>
           </div>
           <div>
             <div className="meta mb-0.5">timestamp</div>
@@ -172,36 +125,7 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
           </div>
         )}
 
-        <div className="border-t border-[#21262d] my-2" />
 
-        <div className="mt-2">
-          <button
-            onClick={handleVerify}
-            disabled={isVerifying || isVerified || selectedBlob.is_encrypted}
-            className={`w-full py-2 px-3 flex items-center justify-center gap-2 border rounded-sm transition-all duration-150 active:scale-[0.97] text-[12px] font-medium ${
-              selectedBlob.is_encrypted
-                ? 'border-[#f78166] text-[#f78166] bg-[#0f0a09] cursor-not-allowed'
-                : isVerified 
-                ? 'border-[#3fb950] text-[#3fb950] bg-[#0a1c0e]' 
-                : isVerifying
-                ? 'border-border text-muted bg-surface cursor-wait'
-                : 'border-border text-[#c9d1d9] hover:bg-surface hover:border-muted'
-            }`}
-          >
-            {isVerified && !selectedBlob.is_encrypted && <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />}
-            {isVerifying ? (
-              <>
-                <span className="w-3 h-3 rounded-full border-2 border-muted border-t-[#c9d1d9] animate-spin" />
-                Verifying...
-              </>
-            ) : selectedBlob.is_encrypted ? 'SEAL Encrypted (No Key)' : isVerified ? 'Hash Verified' : 'Verify Content Hash'}
-          </button>
-          {verifyError && (
-            <p className="mt-1.5 text-[11px] text-[#f78166] leading-snug opacity-80">
-              {verifyError}
-            </p>
-          )}
-        </div>
       </div>
     </div>
   );

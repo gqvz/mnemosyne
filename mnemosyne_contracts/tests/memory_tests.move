@@ -95,7 +95,7 @@ fun write_memory_from_owner() {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
         let mem = memory::write_memory(
-            &mut ns, b"blob-abc", b"hash-def", 0, 2, false, &clock, scenario.ctx(),
+            &mut ns, b"blob-abc", b"hash-def", 0, vector[], false, &clock, scenario.ctx(),
         );
         unit_test::assert_eq!(memory::memory_count(&ns), 1);
         unit_test::assert_eq!(memory::blob_id(&mem), b"blob-abc");
@@ -127,7 +127,7 @@ fun invalid_memory_type_rejected() {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
         let _mem = memory::write_memory(
-            &mut ns, b"blob", b"hash", 4, 0, false, &clock, scenario.ctx(),
+            &mut ns, b"blob", b"hash", 4, vector[], false, &clock, scenario.ctx(),
         );
         unit_test::destroy(_mem);
         test_scenario::return_shared(ns);
@@ -153,9 +153,9 @@ fun multiple_memories_increment_count() {
     {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
-        let m1 = memory::write_memory(&mut ns, b"b1", b"h1", 0, 0, false, &clock, scenario.ctx());
-        let m2 = memory::write_memory(&mut ns, b"b2", b"h2", 1, 1, false, &clock, scenario.ctx());
-        let m3 = memory::write_memory(&mut ns, b"b3", b"h3", 2, 0, true, &clock, scenario.ctx());
+        let m1 = memory::write_memory(&mut ns, b"b1", b"h1", 0, vector[], false, &clock, scenario.ctx());
+        let m2 = memory::write_memory(&mut ns, b"b2", b"h2", 1, vector[b"b1"], false, &clock, scenario.ctx());
+        let m3 = memory::write_memory(&mut ns, b"b3", b"h3", 2, vector[], true, &clock, scenario.ctx());
         unit_test::assert_eq!(memory::memory_count(&ns), 3);
         test_scenario::return_shared(ns);
         unit_test::destroy(m1);
@@ -183,8 +183,8 @@ fun encrypted_memory_flag() {
     {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
-        let enc = memory::write_memory(&mut ns, b"e", b"eh", 1, 0, true, &clock, scenario.ctx());
-        let plain = memory::write_memory(&mut ns, b"p", b"ph", 0, 0, false, &clock, scenario.ctx());
+        let enc = memory::write_memory(&mut ns, b"e", b"eh", 1, vector[], true, &clock, scenario.ctx());
+        let plain = memory::write_memory(&mut ns, b"p", b"ph", 0, vector[], false, &clock, scenario.ctx());
         unit_test::assert_eq!(memory::encrypted(&enc), true);
         unit_test::assert_eq!(memory::encrypted(&plain), false);
         test_scenario::return_shared(ns);
@@ -212,10 +212,10 @@ fun memory_types_across_range() {
     {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
-        let o = memory::write_memory(&mut ns, b"o", b"h", 0, 0, false, &clock, scenario.ctx());
-        let d = memory::write_memory(&mut ns, b"d", b"h", 1, 0, false, &clock, scenario.ctx());
-        let a = memory::write_memory(&mut ns, b"a", b"h", 2, 0, false, &clock, scenario.ctx());
-        let r = memory::write_memory(&mut ns, b"r", b"h", 3, 0, false, &clock, scenario.ctx());
+        let o = memory::write_memory(&mut ns, b"o", b"h", 0, vector[], false, &clock, scenario.ctx());
+        let d = memory::write_memory(&mut ns, b"d", b"h", 1, vector[], false, &clock, scenario.ctx());
+        let a = memory::write_memory(&mut ns, b"a", b"h", 2, vector[], false, &clock, scenario.ctx());
+        let r = memory::write_memory(&mut ns, b"r", b"h", 3, vector[], false, &clock, scenario.ctx());
         unit_test::assert_eq!(memory::memory_type(&o), 0);
         unit_test::assert_eq!(memory::memory_type(&d), 1);
         unit_test::assert_eq!(memory::memory_type(&a), 2);
@@ -288,7 +288,7 @@ fun different_agents_write_memories() {
     {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
-        let mem = memory::write_memory(&mut ns, b"a1", b"h1", 0, 0, false, &clock, scenario.ctx());
+        let mem = memory::write_memory(&mut ns, b"a1", b"h1", 0, vector[], false, &clock, scenario.ctx());
         unit_test::assert_eq!(memory::agent_id(&mem), agent1);
         test_scenario::return_shared(ns);
         unit_test::destroy(mem);
@@ -299,7 +299,7 @@ fun different_agents_write_memories() {
     {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
-        let mem = memory::write_memory(&mut ns, b"a2", b"h2", 1, 0, false, &clock, scenario.ctx());
+        let mem = memory::write_memory(&mut ns, b"a2", b"h2", 1, vector[], false, &clock, scenario.ctx());
         unit_test::assert_eq!(memory::agent_id(&mem), agent2);
         test_scenario::return_shared(ns);
         unit_test::destroy(mem);
@@ -327,7 +327,7 @@ fun unauthorized_sender_cannot_write_memory() {
     {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
-        let mem = memory::write_memory(&mut ns, b"rand", b"h", 0, 0, false, &clock, scenario.ctx());
+        let mem = memory::write_memory(&mut ns, b"rand", b"h", 0, vector[], false, &clock, scenario.ctx());
         test_scenario::return_shared(ns);
         unit_test::destroy(mem);
         clock.share_for_testing();
@@ -363,7 +363,7 @@ fun registered_agent_can_write_memory() {
     {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
-        let mem = memory::write_memory(&mut ns, b"rand", b"h", 0, 0, false, &clock, scenario.ctx());
+        let mem = memory::write_memory(&mut ns, b"rand", b"h", 0, vector[], false, &clock, scenario.ctx());
         unit_test::assert_eq!(memory::agent_id(&mem), agent);
         unit_test::assert_eq!(memory::memory_count(&ns), 1);
         test_scenario::return_shared(ns);

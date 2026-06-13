@@ -6,11 +6,17 @@ const GRPC_URLS: Record<string, string> = {
   mainnet: "https://fullnode.mainnet.sui.io:443",
 };
 
+const defaultNetwork = (import.meta.env.VITE_SUI_NETWORK as "testnet" | "mainnet") || "testnet";
+const customGrpcUrl = import.meta.env.VITE_SUI_GRPC_URL;
+
 export const dAppKit = createDAppKit({
   networks: ["testnet", "mainnet"] as const,
-  defaultNetwork: "testnet",
+  defaultNetwork,
   createClient: (network) =>
-    new SuiGrpcClient({ network, baseUrl: GRPC_URLS[network] }),
+    new SuiGrpcClient({
+      network,
+      baseUrl: network === defaultNetwork && customGrpcUrl ? customGrpcUrl : GRPC_URLS[network],
+    }),
 });
 
 declare module "@mysten/dapp-kit-react" {

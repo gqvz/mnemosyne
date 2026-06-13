@@ -9,12 +9,10 @@ import GridView from './GridView';
 import type { SortOrder } from './GridView';
 import LogStream from './LogStream';
 import BlobInspector from './BlobInspector';
-import { useMemories, useResolvedParents } from './useLiveData';
+import { useMemories } from './useLiveData';
 import type { MemoryType } from '../types';
 
 export default function MemoryBrowser() {
-  const { data: liveMemories = [], isLoading } = useMemories();
-  useResolvedParents(liveMemories);
   const [selectedBlobId, setSelectedBlobId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewType, setViewType] = useState<ViewType>('causal');
@@ -25,6 +23,12 @@ export default function MemoryBrowser() {
     types: ['observation', 'decision', 'artifact', 'reflection'],
     encryptedOnly: false
   });
+
+  const { data: liveMemories = [], isLoading } = useMemories(filters.namespace);
+
+  const handleSelect = useCallback((m: any) => {
+    setSelectedBlobId(m.blob_id);
+  }, []);
 
   useEffect(() => {
     if (liveMemories.length > 0) {
@@ -104,7 +108,14 @@ export default function MemoryBrowser() {
         />
         
         <div className="flex-1 relative bg-bg-center" style={{ viewTransitionName: 'view-switch' }}>
-          {filteredMemories.length === 0 ? (
+          {!filters.namespace ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-center p-6 select-none font-mono">
+              <span className="text-accent text-[15px] font-bold tracking-wider mb-1">MNEMOSYNE DEPLOYED</span>
+              <span className="text-[#8b949e] text-[12px] max-w-md leading-relaxed">
+                Connect your Sui wallet and enter a Namespace object ID in the sidebar to visualize your autonomous agent swarm's causal memories.
+              </span>
+            </div>
+          ) : filteredMemories.length === 0 ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
               <span className="data text-muted">No matching memories</span>
               <span className="meta text-center leading-relaxed px-4">Adjust filters or search term to see results</span>
@@ -115,21 +126,21 @@ export default function MemoryBrowser() {
                 <MemoryGraph 
                   memories={filteredMemories} 
                   selectedId={selectedBlobId} 
-                  onSelect={(m) => setSelectedBlobId(m.blob_id)} 
+                  onSelect={handleSelect} 
                 />
               )}
               {viewType === 'timeline' && (
                 <TimelineView
                   memories={filteredMemories}
                   selectedId={selectedBlobId}
-                  onSelect={(m) => setSelectedBlobId(m.blob_id)}
+                  onSelect={handleSelect}
                 />
               )}
               {viewType === 'grid' && (
                 <GridView
                   memories={filteredMemories}
                   selectedId={selectedBlobId}
-                  onSelect={(m) => setSelectedBlobId(m.blob_id)}
+                  onSelect={handleSelect}
                   sortOrder={sortOrder}
                 />
               )}

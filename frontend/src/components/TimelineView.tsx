@@ -259,7 +259,18 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
       .attr('fill', d => d.typeColor)
       .text(d => `${getMemoryType(d.memory.memory_type).slice(0, 3)}:${d.id.substring(0, 8)}`);
 
-  }, [nodesData, linksData, swimlanes, timeExtent, selectedId, onSelect]);
+  }, [nodesData, linksData, swimlanes, timeExtent, onSelect]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const svg = d3.select(containerRef.current).select('svg');
+    if (svg.empty()) return;
+
+    svg.selectAll('.node rect')
+      .attr('stroke', d => (d as NodeDatum).id === selectedId ? '#ffffff' : (d as NodeDatum).typeColor)
+      .attr('stroke-width', d => (d as NodeDatum).id === selectedId ? 2.5 : 1)
+      .attr('filter', d => (d as NodeDatum).id === selectedId ? 'url(#glow-timeline)' : null);
+  }, [selectedId]);
 
   return (
     <div className="w-full h-full bg-bg-center relative text-[13px]">

@@ -1,0 +1,24 @@
+{
+  "name": "@mnemosyne/trading-poc",
+  "version": "0.1.0",
+  "description": "Thread-safe multi-agent trading PoC using the Mnemosyne SDK",
+  "type": "module",
+  "scripts": {
+    "start": "node --loader ts-node/esm src/index.ts",
+    "dev": "tsx src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@mnemosyne/sdk": "file:../sdk",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@mysten/sui": "^2.17.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@mysten/sui": "^2.17.0"
+  }
+}

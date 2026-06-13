@@ -30,7 +30,7 @@ export async function storeMemoryOnWalrus(
   const memwal = createMemWal(client, memwalConfig);
 
   console.log(`[MemWal SDK] Uploading memory to MemWal Relayer...`);
-  const result = await memwal.rememberAndWait(content, client.namespaceId, { timeoutMs: 30000 });
+  const result = await memwal.rememberAndWait(content, client.namespaceId, { timeoutMs: 90000 });
   return {
     blobId: result.blob_id,
     blobObjectId: result.id,
@@ -42,18 +42,8 @@ export async function readMemoryFromWalrus(
   blobId: string,
   memwalConfig?: MemWalConfig,
 ): Promise<string> {
-  // Primary path: fetch directly from the public Walrus testnet aggregator.
-  try {
-    const url = `${WALRUS_TESTNET_AGGREGATOR}/v1/blobs/${blobId}`;
-    const response = await fetch(url);
-    if (response.ok) {
-      return response.text();
-    }
-    // Non-ok status (e.g. 404) — fall through to MemWal recall.
-    console.warn(`[Walrus] Aggregator returned ${response.status} for blob ${blobId}, falling back to MemWal recall.`);
-  } catch (fetchErr) {
-    console.warn(`[Walrus] Aggregator fetch failed for blob ${blobId}:`, fetchErr);
-  }
+  // Fetch via MemWal recall to ensure the blob is decrypted by SEAL.
+  // We use a generic query to fetch the latest memories in the namespace.
 
   // Fallback: search via MemWal recall using the blobId as the query term.
   const memwal = createMemWal(client, memwalConfig);

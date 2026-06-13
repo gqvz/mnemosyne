@@ -15,6 +15,8 @@ export const MemorySchema = z.object({
   encrypted: z.boolean().default(false),
   seal_policy_id: z.string().optional(),
   verified: z.boolean().optional(),
+  max_uses: z.number().default(0).optional(),
+  use_count: z.number().default(0).optional(),
 });
 
 export type Memory = z.infer<typeof MemorySchema>;
@@ -105,4 +107,16 @@ export interface MemoryEvent {
   namespace_id: string;
   memory_type: number;
   timestamp_ms: string | number;
+  max_uses?: number;
+  is_shared?: boolean;
+  parent_memories?: number[][];
+}
+
+export interface MemoryClaimedEvent {
+  memory_id: string;
+  ticket_id: string;
+  claimer: string;
+  use_count: number;
+  max_uses: number;
+  claimed_at_ms: string | number;
 }

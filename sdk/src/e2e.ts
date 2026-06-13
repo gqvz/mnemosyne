@@ -4,9 +4,8 @@ import { serializeMemory, buildMemory, deserializeMemory } from "./core/memory.j
 import { storeMemoryOnWalrus, readMemoryFromWalrus, verifyBlobExists } from "./core/walrus.js";
 import { replayFromBlobId } from "./core/replay.js";
 import type { Memory } from "./core/types.js";
-import { sealEncrypt, sealDecrypt } from "./core/seal.js";
 
-const PACKAGE_ID = process.env.PACKAGE_ID || "0xb2575d9ee97c40256041a27c23abaa763a37b17a1604d23baeceba6b1410bda8";
+const PACKAGE_ID = process.env.MNEMOSYNE_PACKAGE_ID || "0x0c3727c0cded915935aa978cc3435b5d5a57f7015153ba4d3b75044ca4277fde";
 const PRIVATE_KEY = process.env.SUI_PRIVATE_KEY || "";
 
 function sleep(ms: number): Promise<void> {
@@ -24,8 +23,9 @@ async function main() {
 
   const client = new MnemosyneClient({
     privateKey: PRIVATE_KEY,
-    network: "testnet",
+    network: (process.env.SUI_NETWORK as "testnet" | "mainnet") || "testnet",
     packageId: PACKAGE_ID,
+    suiRpcUrl: process.env.SUI_RPC_URL,
   });
 
   console.log(`Owner:    ${client.address}`);
@@ -52,7 +52,7 @@ async function main() {
   const obsSerialized = serializeMemory(obsMemory);
   const { blobId: obsBlobId } = await storeMemoryOnWalrus(client, obsSerialized);
   console.log(`  Walrus blob ID: ${obsBlobId}`);
-  const obsTx = await client.writeMemoryIndex(obsBlobId, obsMemory.content_hash, 0, 0, false);
+  const obsTx = await client.writeMemoryIndex(obsBlobId, obsMemory.content_hash, 0, obsMemory.parent_memories, false);
   console.log(`  On-chain MemoryIndex tx: ${obsTx.slice(0, 16)}...`);
 
   // Verify Walrus read roundtrip — read back and deserialize
@@ -67,14 +67,14 @@ async function main() {
   const decMemory = buildMemory("", client.address, nsId, "decision", decPayload, [obsBlobId], 1, true);
   const decSerialized = serializeMemory(decMemory);
   const { blobId: decBlobId } = await storeMemoryOnWalrus(client, decSerialized);
-  await client.writeMemoryIndex(decBlobId, decMemory.content_hash, 1, 1, true);
+  await client.writeMemoryIndex(decBlobId, decMemory.content_hash, 1, decMemory.parent_memories, true);
   await sleep(2000);
 
   const artPayload = { tx_digest: `0x${sha256(decBlobId).slice(0, 8)}`, action: "mint_predict", outcome: "SUCCESS", pnl: 12.5, gas_cost: 0.003 };
   const artMemory = buildMemory("", client.address, nsId, "artifact", artPayload, [decBlobId], 2, false);
   const artSerialized = serializeMemory(artMemory);
   const { blobId: artBlobId } = await storeMemoryOnWalrus(client, artSerialized);
-  await client.writeMemoryIndex(artBlobId, artMemory.content_hash, 2, 1, false);
+  await client.writeMemoryIndex(artBlobId, artMemory.content_hash, 2, artMemory.parent_memories, false);
   await sleep(2000);
   console.log("  Decision + Artifact stored on Walrus + on-chain");
 
@@ -113,21 +113,7 @@ async function main() {
     console.error("  Stack:", (err as Error).stack);
   }
 
-  // Step 8: Seal encryption test
-  console.log("\n--- 8. Seal Encryption ---");
-  try {
-    const plaintext = "sensitive strategy data";
-    const encResult = await sealEncrypt(client.client, PACKAGE_ID, plaintext, client.address);
-    const encryptedBytes = encResult.encryptedObject;
-    console.log(`  Encrypted: ${encryptedBytes.length} bytes`);
-
-    const decrypted = await sealDecrypt(
-      client.client, PACKAGE_ID, encryptedBytes, client.address, client.keypair,
-    );
-    console.log(`  Decrypted match: ${decrypted === plaintext}`);
-  } catch (err) {
-    console.log(`  Seal test skipped: ${(err as Error).message}`);
-  }
+  // Removed manual SEAL encryption test (MemWal handles encryption automatically).
 
   console.log("\n=== E2E COMPLETE ===");
   console.log(`Namespace: ${nsId}`);

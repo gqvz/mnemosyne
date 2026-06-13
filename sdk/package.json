@@ -17,7 +17,8 @@
     "scout": "node dist/agents/scout.js",
     "strategist": "node dist/agents/strategist.js",
     "executor": "node dist/agents/executor.js",
-    "e2e": "node dist/e2e.js"
+    "e2e": "node dist/e2e.js",
+    "trading-poc": "node dist/trading_poc/index.js"
   },
   "dependencies": {
     "@mysten-incubation/memwal": "^0.0.6",

@@ -57,8 +57,26 @@ export class ScoutAgent {
     );
     const serialized = serializeMemory(memory);
     const { blobId } = await storeMemoryOnWalrus(this.client, serialized, false, 1, this.memwalConfig);
-    await this.client.writeMemoryIndex(blobId, memory.content_hash, 0, 0, false);
+    await this.client.writeMemoryIndex(blobId, memory.content_hash, 0, memory.parent_memories, false);
     console.log(`[Scout] Observation: blob ${blobId.slice(0, 16)}...`);
+    return blobId;
+  }
+
+  async recordSharedObservation(data: ObservationPayload, maxUses: number): Promise<string> {
+    const memory = buildMemory(
+      "",
+      this.client.address,
+      this.client.namespaceId,
+      "observation",
+      data,
+      [],
+      0,
+      false,
+    );
+    const serialized = serializeMemory(memory);
+    const { blobId } = await storeMemoryOnWalrus(this.client, serialized, false, 1, this.memwalConfig);
+    await this.client.writeMemoryShared(blobId, memory.content_hash, 0, memory.parent_memories, false, maxUses);
+    console.log(`[Scout] Shared Observation: blob ${blobId.slice(0, 16)}... (max_uses: ${maxUses})`);
     return blobId;
   }
 

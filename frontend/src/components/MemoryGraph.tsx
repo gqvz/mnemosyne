@@ -250,7 +250,18 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       simulation.stop();
     };
 
-  }, [initialNodes, initialLinks, selectedId, onSelect]);
+  }, [initialNodes, initialLinks, onSelect]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const svg = d3.select(containerRef.current).select('svg');
+    if (svg.empty()) return;
+
+    svg.selectAll('.node rect')
+      .attr('stroke', d => (d as NodeDatum).id === selectedId ? '#ffffff' : (d as NodeDatum).typeColor)
+      .attr('stroke-width', d => (d as NodeDatum).id === selectedId ? 2.5 : 1)
+      .attr('filter', d => (d as NodeDatum).id === selectedId ? `url(#glow-${(d as NodeDatum).typeStr})` : null);
+  }, [selectedId]);
 
   return (
     <div className="w-full h-full bg-bg-center relative overflow-hidden text-[13px]">

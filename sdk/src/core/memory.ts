@@ -50,6 +50,8 @@ export function serializeMemory(memory: Memory): string {
     depth: memory.depth,
     timestamp_ms: memory.timestamp_ms,
     encrypted: memory.encrypted,
+    max_uses: memory.max_uses,
+    use_count: memory.use_count,
   });
 }
 

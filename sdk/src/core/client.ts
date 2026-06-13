@@ -8,6 +8,7 @@ export interface ClientConfig {
   network: "testnet" | "mainnet";
   packageId: string;
   namespaceId?: string;
+  suiRpcUrl?: string;
 }
 
 export function sha256(data: string): string {
@@ -39,7 +40,7 @@ export class MnemosyneClient {
     this.keypair = Ed25519Keypair.fromSecretKey(config.privateKey);
 
     this.client = new SuiJsonRpcClient({
-      url: getJsonRpcFullnodeUrl(config.network),
+      url: config.suiRpcUrl || getJsonRpcFullnodeUrl(config.network),
       network: config.network,
     });
   }
@@ -49,12 +50,24 @@ export class MnemosyneClient {
   }
 
   async signAndExecute(tx: Transaction): Promise<string> {
+    try {
+      const balance = await this.client.getBalance({ owner: this.address });
+      const balanceVal = Number(balance.totalBalance);
+      if (balanceVal < 50000000) {
+        tx.setGasBudget(Math.min(balanceVal, 10000000));
+      }
+    } catch {
+      // ignore if budget already set or query fails
+    }
     const r = await this.client.signAndExecuteTransaction({
       transaction: tx,
       signer: this.keypair,
       options: { showEffects: true, showObjectChanges: true },
     });
     if (r.errors && r.errors.length > 0) throw new Error(`Tx failed: ${r.errors[0]}`);
+    if (r.effects && r.effects.status && r.effects.status.status === "failure") {
+      throw new Error(`Tx failed on-chain: ${r.effects.status.error}`);
+    }
     await this.client.waitForTransaction({ digest: r.digest });
     return r.digest;
   }
@@ -112,7 +125,7 @@ export class MnemosyneClient {
     blobId: string,
     contentHash: string,
     memoryType: number,
-    parentCount: number,
+    parentMemories: string[],
     isEncrypted: boolean,
   ): Promise<string> {
     const tx = new Transaction();
@@ -123,13 +136,114 @@ export class MnemosyneClient {
         tx.pure.vector("u8", Array.from(Buffer.from(blobId))),
         tx.pure.vector("u8", Array.from(Buffer.from(contentHash, "hex"))),
         tx.pure.u8(memoryType),
-        tx.pure.u32(parentCount),
+        tx.pure.vector("vector<u8>", parentMemories.map((id) => Array.from(Buffer.from(id)))),
         tx.pure.bool(isEncrypted),
         tx.object.clock(),
       ],
     });
     tx.transferObjects([mem], this.address);
     return this.signAndExecute(tx);
+  }
+
+  async writeMemoryShared(
+    blobId: string,
+    contentHash: string,
+    memoryType: number,
+    parentMemories: string[],
+    isEncrypted: boolean,
+    maxUses: number,
+  ): Promise<string> {
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${this.packageId}::memory::write_memory_shared`,
+      arguments: [
+        tx.object(this.namespaceId),
+        tx.pure.vector("u8", Array.from(Buffer.from(blobId))),
+        tx.pure.vector("u8", Array.from(Buffer.from(contentHash, "hex"))),
+        tx.pure.u8(memoryType),
+        tx.pure.vector("vector<u8>", parentMemories.map((id) => Array.from(Buffer.from(id)))),
+        tx.pure.bool(isEncrypted),
+        tx.pure.u64(maxUses),
+        tx.object.clock(),
+      ],
+    });
+    return this.signAndExecute(tx);
+  }
+
+  async writeMemoryDeduped(
+    blobId: string,
+    contentHash: string,
+    memoryType: number,
+    parentMemories: string[],
+    isEncrypted: boolean,
+    maxUses: number = 0,
+  ): Promise<string> {
+    const tx = new Transaction();
+    const [mem] = tx.moveCall({
+      target: `${this.packageId}::memory::write_memory_deduped`,
+      arguments: [
+        tx.object(this.namespaceId),
+        tx.pure.vector("u8", Array.from(Buffer.from(blobId))),
+        tx.pure.vector("u8", Array.from(Buffer.from(contentHash, "hex"))),
+        tx.pure.u8(memoryType),
+        tx.pure.vector("vector<u8>", parentMemories.map((id) => Array.from(Buffer.from(id)))),
+        tx.pure.bool(isEncrypted),
+        tx.pure.u64(maxUses),
+        tx.object.clock(),
+      ],
+    });
+    tx.transferObjects([mem], this.address);
+    return this.signAndExecute(tx);
+  }
+
+  async writeMemorySharedDeduped(
+    blobId: string,
+    contentHash: string,
+    memoryType: number,
+    parentMemories: string[],
+    isEncrypted: boolean,
+    maxUses: number = 0,
+  ): Promise<string> {
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${this.packageId}::memory::write_memory_shared_deduped`,
+      arguments: [
+        tx.object(this.namespaceId),
+        tx.pure.vector("u8", Array.from(Buffer.from(blobId))),
+        tx.pure.vector("u8", Array.from(Buffer.from(contentHash, "hex"))),
+        tx.pure.u8(memoryType),
+        tx.pure.vector("vector<u8>", parentMemories.map((id) => Array.from(Buffer.from(id)))),
+        tx.pure.bool(isEncrypted),
+        tx.pure.u64(maxUses),
+        tx.object.clock(),
+      ],
+    });
+    return this.signAndExecute(tx);
+  }
+
+  async claimMemory(memoryId: string): Promise<string> {
+    const tx = new Transaction();
+    const [ticket] = tx.moveCall({
+      target: `${this.packageId}::memory::claim_memory`,
+      arguments: [tx.object(memoryId), tx.object.clock()],
+    });
+    tx.transferObjects([ticket], this.address);
+    return this.signAndExecute(tx);
+  }
+
+  async hasContentHash(contentHash: string): Promise<boolean> {
+    try {
+      const res = await this.client.getDynamicFieldObject({
+        parentId: this.namespaceId,
+        name: {
+          type: `${this.packageId}::memory::ContentHashKey`,
+          value: { hash: Array.from(Buffer.from(contentHash, "hex")) },
+        },
+      });
+      return !res.error;
+    } catch {
+      return false;
+    }
   }
 
   async getNamespaceState(): Promise<Record<string, unknown> | null> {
@@ -152,6 +266,28 @@ export class MnemosyneClient {
       data = data.filter((e) => String(e.namespace_id) === namespaceId);
     }
     return data;
+  }
+
+  async queryClaimEvents(limit: number = 20, namespaceId?: string): Promise<Array<Record<string, unknown>>> {
+    const events = await this.client.queryEvents({
+      query: { MoveEventType: `${this.packageId}::memory::MemoryClaimed` },
+      limit,
+      order: "descending",
+    });
+    let data = events.data.map((e) => e.parsedJson as Record<string, unknown>);
+    if (namespaceId) {
+      data = data.filter((e) => String(e.namespace_id) === namespaceId);
+    }
+    return data;
+  }
+
+  async getMemoryObject(memoryId: string): Promise<Record<string, unknown> | null> {
+    const obj = await this.client.getObject({
+      id: memoryId,
+      options: { showContent: true },
+    });
+    if (!obj.data?.content) return null;
+    return (obj.data.content as { fields?: Record<string, unknown> }).fields || null;
   }
 
   private sleep(ms: number): Promise<void> {
