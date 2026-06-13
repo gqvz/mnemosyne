@@ -177,4 +177,65 @@
 .problem-table td:nth-child(3) { color: #3fb950; }
 .problem-table tr:hover td { background: #0d1117; }
 
+/* Features Section */
+.features {
+  padding: 80px 8%;
+  background-color: #0a0d12;
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid #21262d;
+}
+
+.features-inner {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.features-label {
+  font-size: 11px;
+  color: #388bfd;
+  letter-spacing: 0.1em;
+  margin-bottom: 36px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.feature-card {
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 3px;
+  padding: 24px 20px;
+  transition: border-color 0.2s, background 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feature-card:hover {
+  background: #0f1419;
+  border-color: #30363d;
+}
+
+.feature-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.feature-title {
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.feature-desc {
+  font-size: 12px;
+  color: #6e7681;
+  line-height: 1.75;
+}
 

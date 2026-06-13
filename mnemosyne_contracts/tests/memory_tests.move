@@ -310,7 +310,8 @@ fun different_agents_write_memories() {
 }
 
 #[test]
-fun any_sender_can_write_memory() {
+#[expected_failure(abort_code = memory::ENotAuthorized)]
+fun unauthorized_sender_cannot_write_memory() {
     let owner = @0xA;
     let random_sender = @0xBEEF;
     let mut scenario = test_scenario::begin(owner);
@@ -327,7 +328,43 @@ fun any_sender_can_write_memory() {
         let clock = clock::create_for_testing(scenario.ctx());
         let mut ns = scenario.take_shared<memory::Namespace>();
         let mem = memory::write_memory(&mut ns, b"rand", b"h", 0, 0, false, &clock, scenario.ctx());
-        unit_test::assert_eq!(memory::agent_id(&mem), random_sender);
+        test_scenario::return_shared(ns);
+        unit_test::destroy(mem);
+        clock.share_for_testing();
+    };
+
+    scenario.end();
+}
+
+#[test]
+fun registered_agent_can_write_memory() {
+    let owner = @0xA;
+    let agent = @0xBEEF;
+    let mut scenario = test_scenario::begin(owner);
+
+    scenario.next_tx(owner);
+    {
+        let clock = clock::create_for_testing(scenario.ctx());
+        memory::create_namespace(b"ns", &clock, scenario.ctx());
+        clock.share_for_testing();
+    };
+
+    scenario.next_tx(owner);
+    {
+        let clock = clock::create_for_testing(scenario.ctx());
+        let mut ns = scenario.take_shared<memory::Namespace>();
+        let reg = memory::register_agent(&mut ns, agent, b"scout", &clock, scenario.ctx());
+        unit_test::destroy(reg);
+        test_scenario::return_shared(ns);
+        clock.share_for_testing();
+    };
+
+    scenario.next_tx(agent);
+    {
+        let clock = clock::create_for_testing(scenario.ctx());
+        let mut ns = scenario.take_shared<memory::Namespace>();
+        let mem = memory::write_memory(&mut ns, b"rand", b"h", 0, 0, false, &clock, scenario.ctx());
+        unit_test::assert_eq!(memory::agent_id(&mem), agent);
         unit_test::assert_eq!(memory::memory_count(&ns), 1);
         test_scenario::return_shared(ns);
         unit_test::destroy(mem);

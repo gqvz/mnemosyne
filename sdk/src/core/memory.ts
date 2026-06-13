@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Memory, MemoryEvent, VerificationNode, NamespaceConfig } from "./types.js";
+import type { Memory, VerificationNode } from "./types.js";
 import { MemorySchema } from "./types.js";
 
 export function computeContentHash(content: unknown): string {
@@ -53,72 +53,15 @@ export function serializeMemory(memory: Memory): string {
   });
 }
 
-export function deserializeMemory(raw: string): Memory {
+export function deserializeMemory(raw: string, blobId?: string): Memory {
   const parsed = JSON.parse(raw);
+  if (blobId && (!parsed.blob_id || parsed.blob_id === "")) {
+    parsed.blob_id = blobId;
+  }
   return MemorySchema.parse(parsed);
 }
 
 export function verifyContentHash(memory: Memory): boolean {
   const expected = computeContentHash(memory.content);
   return expected === memory.content_hash;
-}
-
-export function walkCausalChain(
-  memories: Map<string, Memory>,
-  rootBlobId: string,
-): VerificationNode | null {
-  const root = memories.get(rootBlobId);
-  if (!root) return null;
-
-  const children: VerificationNode[] = [];
-  for (const parentId of root.parent_memories) {
-    const child = walkCausalChain(memories, parentId);
-    if (child) children.push(child);
-  }
-
-  return {
-    memory: root,
-    verified: verifyContentHash(root),
-    children,
-  };
-}
-
-export function formatMemoryText(memory: Memory): string {
-  const typePrefix = {
-    observation: "[OBS]",
-    decision: "[DEC]",
-    artifact: "[ART]",
-    reflection: "[REF]",
-  }[memory.memory_type];
-
-  const summary =
-    typeof memory.content === "object" && memory.content !== null
-      ? JSON.stringify(memory.content).slice(0, 120)
-      : String(memory.content);
-
-  return `${typePrefix} Agent ${memory.agent_id.slice(0, 8)}... | ${summary}`;
-}
-
-export function buildOnChainMemoryTxParams(
-  namespaceAddress: string,
-  blobId: string,
-  contentHash: string,
-  memoryTypeU8: number,
-  parentCount: number,
-  isEncrypted: boolean,
-  packageId: string,
-  clockObjectId: string,
-) {
-  return {
-    target: `${packageId}::memory::write_memory`,
-    arguments: [
-      { kind: "object", id: namespaceAddress },
-      { kind: "pure", value: Array.from(Buffer.from(blobId)) },
-      { kind: "pure", value: Array.from(Buffer.from(contentHash, "hex")) },
-      { kind: "pure", value: memoryTypeU8 },
-      { kind: "pure", value: parentCount },
-      { kind: "pure", value: isEncrypted },
-      { kind: "object", id: clockObjectId },
-    ],
-  };
 }

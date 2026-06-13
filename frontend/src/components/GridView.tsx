@@ -27,7 +27,7 @@ export default function GridView({ memories, selectedId, onSelect, sortOrder }: 
 
   return (
     <div className="w-full h-full overflow-y-auto bg-bg-center p-4">
-      <div className="grid grid-cols-3 gap-3" role="list">
+      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }} role="list">
         {sortedMemories.map(m => {
           const isSelected = m.blob_id === selectedId;
           const typeStr = getMemoryType(m.memory_type);

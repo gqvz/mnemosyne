@@ -39,15 +39,13 @@ export default function Sidebar({ filters, onFilterChange, availableAgents }: Si
     <div className="w-[200px] h-full bg-bg-sidebar border-r border-border-heavy flex flex-col font-mono text-[12px] overflow-y-auto">
       <div className="p-3">
         <h2 className="label pb-1 mb-1">Namespace</h2>
-        <select 
+        <input 
+          type="text"
+          placeholder="Enter Namespace ID..."
           className="w-full bg-surface border border-border text-[#c9d1d9] p-1.5 rounded-sm outline-none focus:border-accent text-[12px] font-medium"
           value={filters.namespace}
           onChange={(e) => onFilterChange({ ...filters, namespace: e.target.value })}
-        >
-          <option value="alpha-swarm-7">alpha-swarm-7</option>
-          <option value="beta-swarm-1">beta-swarm-1</option>
-          <option value="global">global</option>
-        </select>
+        />
       </div>
 
       <div className="label mt-1 border-t border-border px-3 pt-2 pb-1">Agents</div>
@@ -79,7 +77,9 @@ export default function Sidebar({ filters, onFilterChange, availableAgents }: Si
               >
                 {enabled && <span style={{color: '#0d1117', fontSize: 9, lineHeight: '12px', display:'block', textAlign:'center'}}>✓</span>}
               </div>
-              <span className="truncate font-medium">{agent}</span>
+              <span className="truncate font-medium" title={agent}>
+                {agent.length > 20 ? `${agent.slice(0, 8)}...${agent.slice(-4)}` : agent}
+              </span>
             </div>
           );
         })}

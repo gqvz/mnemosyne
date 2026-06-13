@@ -1,5 +1,6 @@
 import { storeMemoryOnWalrus } from "../core/walrus.js";
-import { sha256 } from "../core/client.js";
+import type { MemWalConfig } from "../core/walrus.js";
+import { buildMemory, serializeMemory } from "../core/memory.js";
 import type { MnemosyneClient } from "../core/client.js";
 import type { ObservationPayload } from "../core/types.js";
 
@@ -7,6 +8,7 @@ interface ScoutConfig {
   client: MnemosyneClient;
   pollIntervalMs?: number;
   observeFn: () => Promise<ObservationPayload | null>;
+  memwalConfig?: MemWalConfig;
 }
 
 export class ScoutAgent {
@@ -15,11 +17,13 @@ export class ScoutAgent {
   private timer?: ReturnType<typeof setInterval>;
   private observeFn: () => Promise<ObservationPayload | null>;
   private pollIntervalMs: number;
+  private memwalConfig?: MemWalConfig;
 
   constructor(config: ScoutConfig) {
     this.client = config.client;
     this.observeFn = config.observeFn;
     this.pollIntervalMs = config.pollIntervalMs ?? 10_000;
+    this.memwalConfig = config.memwalConfig;
   }
 
   async start() {
@@ -41,10 +45,19 @@ export class ScoutAgent {
   }
 
   async recordObservation(data: ObservationPayload): Promise<string> {
-    const contentStr = JSON.stringify(data);
-    const { blobId } = await storeMemoryOnWalrus(this.client, contentStr);
-    const contentHash = sha256(contentStr);
-    await this.client.writeMemoryIndex(blobId, contentHash, 0, 0, false);
+    const memory = buildMemory(
+      "",
+      this.client.address,
+      this.client.namespaceId,
+      "observation",
+      data,
+      [],
+      0,
+      false,
+    );
+    const serialized = serializeMemory(memory);
+    const { blobId } = await storeMemoryOnWalrus(this.client, serialized, false, 1, this.memwalConfig);
+    await this.client.writeMemoryIndex(blobId, memory.content_hash, 0, 0, false);
     console.log(`[Scout] Observation: blob ${blobId.slice(0, 16)}...`);
     return blobId;
   }

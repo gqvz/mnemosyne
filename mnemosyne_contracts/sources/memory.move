@@ -5,6 +5,7 @@ use sui::event;
 use sui::clock::{Self, Clock};
 use sui::tx_context::{Self, TxContext};
 use sui::transfer;
+use sui::dynamic_field;
 
 // === Constants ===
 
@@ -23,7 +24,7 @@ const EInvalidMemoryType: vector<u8> = b"Memory type must be 0-3 (observation, d
 #[error]
 const ENotAuthorized: vector<u8> = b"Only namespace owner can perform this action";
 
-#[allow(unused_const)]
+#[error]
 const EAgentAlreadyRegistered: vector<u8> = b"Agent address already registered in this namespace";
 
 // === Structs ===
@@ -68,6 +69,7 @@ public struct MemoryWritten has copy, drop {
     agent_id: address,
     namespace_id: address,
     memory_type: u8,
+    content_hash: vector<u8>,
     timestamp_ms: u64,
 }
 
@@ -120,6 +122,9 @@ public fun register_agent(
     ctx: &mut TxContext,
 ): AgentRegistration {
     assert!(namespace.owner == ctx.sender(), ENotAuthorized);
+    assert!(!dynamic_field::exists(&namespace.id, agent_address), EAgentAlreadyRegistered);
+
+    dynamic_field::add(&mut namespace.id, agent_address, true);
 
     let registration = AgentRegistration {
         id: object::new(ctx),
@@ -153,6 +158,10 @@ public fun write_memory(
     ctx: &mut TxContext,
 ): MemoryIndex {
     assert!(memory_type <= 3, EInvalidMemoryType);
+    assert!(
+        ctx.sender() == namespace.owner || dynamic_field::exists(&namespace.id, ctx.sender()),
+        ENotAuthorized
+    );
 
     let memory = MemoryIndex {
         id: object::new(ctx),
@@ -174,6 +183,7 @@ public fun write_memory(
         agent_id: memory.agent_id,
         namespace_id: memory.namespace_id,
         memory_type,
+        content_hash: memory.content_hash,
         timestamp_ms: memory.timestamp_ms,
     });
 

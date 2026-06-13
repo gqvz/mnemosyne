@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import '../landing.css';
+import { LIVE_PACKAGE_ID } from '../components/useLiveData';
 
 const STYLE = `
 @keyframes f0{0%,100%{transform:translate(0,0)}50%{transform:translate(0,-8px)}}
@@ -114,8 +115,8 @@ export default function Landing() {
               }}/>
               live on sui testnet
             </span>
-            <span style={{ fontSize:12, color:'#484f58', fontFamily:"'JetBrains Mono', monospace" }}>
-              pkg: 0xcc22...8d77
+            <span style={{ fontSize:12, color:'#484f58', fontFamily:"'JetBrains Mono', monospace" }} title={LIVE_PACKAGE_ID}>
+              pkg: {LIVE_PACKAGE_ID.slice(0, 6)}...{LIVE_PACKAGE_ID.slice(-4)}
             </span>
           </div>
         </div>
@@ -130,6 +131,43 @@ export default function Landing() {
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
       `}</style>
 
+      {/* FEATURES */}
+      <section className="features">
+        <div className="features-inner">
+          <div className="features-label">// why mnemosyne_</div>
+          <div className="features-grid">
+            <div className="feature-card">
+              <div className="feature-icon" style={{ color: '#3fb950' }}>⬡</div>
+              <div className="feature-title" style={{ color: '#3fb950' }}>Verifiable Memory</div>
+              <div className="feature-desc">
+                Every memory write anchors a SHA-256 content hash on Sui. Agents can't lie about what they saw.
+              </div>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon" style={{ color: '#58a6ff' }}>⬡</div>
+              <div className="feature-title" style={{ color: '#58a6ff' }}>Causal Graph</div>
+              <div className="feature-desc">
+                Parent-child links between observations, decisions, and artifacts let you trace exactly why an agent acted.
+              </div>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon" style={{ color: '#f78166' }}>⬡</div>
+              <div className="feature-title" style={{ color: '#f78166' }}>SEAL Encryption</div>
+              <div className="feature-desc">
+                Sensitive strategy data encrypted with Mysten's SEAL threshold encryption, visible only to authorized agents.
+              </div>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon" style={{ color: '#d2a8ff' }}>⬡</div>
+              <div className="feature-title" style={{ color: '#d2a8ff' }}>Multi-Agent Namespaces</div>
+              <div className="feature-desc">
+                Scout, Strategist, and Executor agents share a namespace on-chain with role-based access control.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* FOOTER */}
       <footer className="footer">
         <div className="footer-inner">
@@ -137,9 +175,9 @@ export default function Landing() {
           <span className="footer-sep">·</span>
           <span className="footer-sub">sui overflow 2026 · walrus track</span>
           <div className="footer-links">
-            <a href="https://github.com/" target="_blank" rel="noreferrer">github</a>
+            <a href="https://github.com/sui-overflow/mnemosyne" target="_blank" rel="noreferrer">github</a>
             <Link to="/browser">launch app</Link>
-            <a href="#" style={{ color: '#484f58', cursor: 'default' }}>pkg: 0xcc22...8d77</a>
+            <a href="#" style={{ color: '#484f58', cursor: 'default' }} title={LIVE_PACKAGE_ID}>pkg: {LIVE_PACKAGE_ID.slice(0, 6)}...{LIVE_PACKAGE_ID.slice(-4)}</a>
           </div>
           <span className="footer-sub">MIT License</span>
         </div>

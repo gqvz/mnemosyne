@@ -2,38 +2,27 @@ import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import { createHash } from "node:crypto";
-import type { Memory } from "./types.js";
-import { MemoryTypeU8 } from "./types.js";
-
-const GRPC_URLS: Record<string, string> = {
-  testnet: "https://fullnode.testnet.sui.io:443",
-  mainnet: "https://fullnode.mainnet.sui.io:443",
-};
 
 export interface ClientConfig {
   privateKey: string;
   network: "testnet" | "mainnet";
   packageId: string;
   namespaceId?: string;
-  grpcUrl?: string;
 }
 
 export function sha256(data: string): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
-function memoryTypeToString(t: number): Memory["memory_type"] {
-  const map: Record<number, Memory["memory_type"]> = {
-    0: "observation",
-    1: "decision",
-    2: "artifact",
-    3: "reflection",
-  };
-  return map[t] || "observation";
-}
-
-function stringToMemoryType(s: Memory["memory_type"]): number {
-  return MemoryTypeU8[s];
+export function bytesToUtf8(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) {
+    return raw.map((b: number) => String.fromCharCode(b)).join("");
+  }
+  if (raw instanceof Uint8Array) {
+    return new TextDecoder().decode(raw);
+  }
+  return "";
 }
 
 export class MnemosyneClient {
@@ -42,14 +31,12 @@ export class MnemosyneClient {
   public packageId: string;
   public namespaceId: string;
   public network: "testnet" | "mainnet";
-  public grpcBaseUrl: string;
 
   constructor(config: ClientConfig) {
     this.packageId = config.packageId;
     this.namespaceId = config.namespaceId || "";
     this.network = config.network;
     this.keypair = Ed25519Keypair.fromSecretKey(config.privateKey);
-    this.grpcBaseUrl = config.grpcUrl || GRPC_URLS[config.network];
 
     this.client = new SuiJsonRpcClient({
       url: getJsonRpcFullnodeUrl(config.network),
@@ -72,6 +59,11 @@ export class MnemosyneClient {
     return r.digest;
   }
 
+  /**
+   * Creates a new Namespace on-chain and sets this.namespaceId to the created object ID.
+   * Subsequent calls will overwrite the stored namespaceId.
+   * @returns The created Namespace object ID
+   */
   async createNamespace(name: string): Promise<string> {
     const tx = new Transaction();
     tx.moveCall({
@@ -82,7 +74,6 @@ export class MnemosyneClient {
       ],
     });
     const digest = await this.signAndExecute(tx);
-    await this.sleep(3000);
 
     const txDetails = await this.client.getTransactionBlock({
       digest,
@@ -150,13 +141,17 @@ export class MnemosyneClient {
     return (obj.data.content as { fields?: Record<string, unknown> }).fields || null;
   }
 
-  async queryMemoryEvents(limit: number = 20): Promise<Array<Record<string, unknown>>> {
+  async queryMemoryEvents(limit: number = 20, namespaceId?: string): Promise<Array<Record<string, unknown>>> {
     const events = await this.client.queryEvents({
       query: { MoveEventType: `${this.packageId}::memory::MemoryWritten` },
       limit,
       order: "descending",
     });
-    return events.data.map((e) => e.parsedJson as Record<string, unknown>);
+    let data = events.data.map((e) => e.parsedJson as Record<string, unknown>);
+    if (namespaceId) {
+      data = data.filter((e) => String(e.namespace_id) === namespaceId);
+    }
+    return data;
   }
 
   private sleep(ms: number): Promise<void> {

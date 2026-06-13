@@ -1,3 +1,5 @@
+import { useWallets } from "@mysten/dapp-kit-react";
+import { ConnectButton } from "@mysten/dapp-kit-react/ui";
 import type { SortOrder } from './GridView';
 
 export type ViewType = 'causal' | 'timeline' | 'grid';
@@ -11,8 +13,16 @@ interface TopBarProps {
   onSortChange: (sort: SortOrder) => void;
 }
 
+const WALLET_ICONS: Record<string, string> = {
+  "Sui Wallet": "💧",
+  "Sui": "💧",
+};
+
 export default function TopBar({ searchTerm, onSearchChange, viewType, onViewChange, sortOrder, onSortChange }: TopBarProps) {
   const views: ViewType[] = ['causal', 'timeline', 'grid'];
+  const wallets = useWallets();
+  const connectedWallet = wallets.find(w => w.accounts.length > 0);
+  const account = connectedWallet?.accounts[0];
 
   return (
     <div className="bg-bg-topbar border-b border-border-heavy px-3 h-[36px] flex items-center justify-between font-mono text-sm gap-2.5">
@@ -24,6 +34,15 @@ export default function TopBar({ searchTerm, onSearchChange, viewType, onViewCha
 
       <div className="flex items-center gap-4 flex-1 justify-end">
         
+        {account ? (
+          <div className="flex items-center gap-1.5 text-[10px] text-muted bg-[#0d1117] border border-[#30363d] rounded px-2 py-0.5">
+            <span>{WALLET_ICONS[connectedWallet?.name || ""] || "🔑"}</span>
+            <span className="text-[#3fb950] font-medium">{account.address.slice(0, 6)}...{account.address.slice(-4)}</span>
+          </div>
+        ) : (
+          <ConnectButton />
+        )}
+
         {viewType === 'grid' && (
           <select 
             className="bg-[#0d1117] border border-[#30363d] rounded text-[#c9d1d9] text-[12px] px-2 py-1 outline-none focus:border-accent transition-colors"

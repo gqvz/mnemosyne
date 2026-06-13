@@ -82,6 +82,16 @@ export const ArtifactPayloadSchema = z.object({
 
 export type ArtifactPayload = z.infer<typeof ArtifactPayloadSchema>;
 
+export const ReflectionPayloadSchema = z.object({
+  summary: z.string(),
+  key_learnings: z.array(z.string()),
+  performance_score: z.number().min(0).max(1).optional(),
+  referenced_memories: z.array(z.string()),
+  notes: z.string().optional(),
+});
+
+export type ReflectionPayload = z.infer<typeof ReflectionPayloadSchema>;
+
 export interface VerificationNode {
   memory: Memory;
   verified: boolean;
@@ -94,5 +104,5 @@ export interface MemoryEvent {
   agent_id: string;
   namespace_id: string;
   memory_type: number;
-  timestamp_ms: string;
+  timestamp_ms: string | number;
 }

@@ -1,61 +1,78 @@
-import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
-import { walrus, TESTNET_WALRUS_PACKAGE_CONFIG, WalrusClient } from "@mysten/walrus";
 import type { MnemosyneClient } from "./client.js";
-import type { Memory } from "./types.js";
+import { MemWal } from "@mysten-incubation/memwal";
 
-let _walrusClient: WalrusClient | null = null;
+const WALRUS_TESTNET_AGGREGATOR = "https://aggregator.walrus-testrus.walrus.space";
 
-export function getWalrusClient(client: MnemosyneClient): WalrusClient {
-  if (_walrusClient) return _walrusClient;
+/** Optional per-call override for MemWal connection settings. When omitted, the
+ *  functions fall back to the MEMWAL_* environment variables. */
+export interface MemWalConfig {
+  key?: string;
+  accountId?: string;
+  serverUrl?: string;
+}
 
-  const walrusPlugin = walrus({
-    packageConfig: client.network === "testnet"
-      ? TESTNET_WALRUS_PACKAGE_CONFIG
-      : undefined,
+function createMemWal(client: MnemosyneClient, config?: MemWalConfig): ReturnType<typeof MemWal.create> {
+  return MemWal.create({
+    key: config?.key ?? process.env.MEMWAL_PRIVATE_KEY!,
+    accountId: config?.accountId ?? process.env.MEMWAL_ACCOUNT_ID!,
+    serverUrl: config?.serverUrl ?? process.env.MEMWAL_SERVER_URL!,
+    namespace: client.namespaceId,
   });
-
-  _walrusClient = walrusPlugin.register(client.client);
-  return _walrusClient;
 }
 
 export async function storeMemoryOnWalrus(
   client: MnemosyneClient,
   content: string,
   deletable: boolean = false,
-  epochs: number = 5,
+  epochs: number = 1,
+  memwalConfig?: MemWalConfig,
 ): Promise<{ blobId: string; blobObjectId: string }> {
-  const wClient = getWalrusClient(client);
-  const bytes = new TextEncoder().encode(content);
+  const memwal = createMemWal(client, memwalConfig);
 
-  const result = await wClient.writeBlob({
-    blob: bytes,
-    deletable,
-    epochs,
-    signer: client.keypair,
-    owner: client.address,
-  });
-
+  console.log(`[MemWal SDK] Uploading memory to MemWal Relayer...`);
+  const result = await memwal.rememberAndWait(content, client.namespaceId, { timeoutMs: 30000 });
   return {
-    blobId: result.blobId,
-    blobObjectId: result.blobObject.id,
+    blobId: result.blob_id,
+    blobObjectId: result.id,
   };
 }
 
 export async function readMemoryFromWalrus(
   client: MnemosyneClient,
   blobId: string,
+  memwalConfig?: MemWalConfig,
 ): Promise<string> {
-  const wClient = getWalrusClient(client);
-  const bytes = await wClient.readBlob({ blobId });
-  return new TextDecoder().decode(bytes);
+  // Primary path: fetch directly from the public Walrus testnet aggregator.
+  try {
+    const url = `${WALRUS_TESTNET_AGGREGATOR}/v1/blobs/${blobId}`;
+    const response = await fetch(url);
+    if (response.ok) {
+      return response.text();
+    }
+    // Non-ok status (e.g. 404) — fall through to MemWal recall.
+    console.warn(`[Walrus] Aggregator returned ${response.status} for blob ${blobId}, falling back to MemWal recall.`);
+  } catch (fetchErr) {
+    console.warn(`[Walrus] Aggregator fetch failed for blob ${blobId}:`, fetchErr);
+  }
+
+  // Fallback: search via MemWal recall using the blobId as the query term.
+  const memwal = createMemWal(client, memwalConfig);
+
+  const recalled = await memwal.recall(blobId, { limit: 200, namespace: client.namespaceId });
+  const memory = recalled.results.find((m: any) => m.blob_id === blobId);
+  if (!memory) {
+    throw new Error(`Memory with blobId ${blobId} not found in Walrus aggregator or MemWal index`);
+  }
+  return memory.text;
 }
 
 export async function verifyBlobExists(
   client: MnemosyneClient,
   blobId: string,
+  memwalConfig?: MemWalConfig,
 ): Promise<boolean> {
   try {
-    await readMemoryFromWalrus(client, blobId);
+    await readMemoryFromWalrus(client, blobId, memwalConfig);
     return true;
   } catch {
     return false;

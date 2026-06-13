@@ -27,9 +27,12 @@ export default function LogStream({ logs }: LogStreamProps) {
     
     if (!isAutoScrollPaused) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
-      setUnreadCount(0);
+      setTimeout(() => setUnreadCount(0), 0);
     } else if (logs.length > lastLogCount.current) {
-      setUnreadCount(prev => prev + (logs.length - lastLogCount.current));
+      const diff = logs.length - lastLogCount.current;
+      setTimeout(() => {
+        setUnreadCount(prev => prev + diff);
+      }, 0);
     }
     
     lastLogCount.current = logs.length;
@@ -97,7 +100,7 @@ export default function LogStream({ logs }: LogStreamProps) {
               <div key={log.blob_id} className="flex gap-3 hover:bg-surface py-0.5 px-1 -mx-1 rounded-sm transition-colors items-baseline">
                 <span className="text-muted shrink-0 tabular-nums">{fmtLogTime(log.timestamp)}</span>
                 <span style={{ color: agentColor }} className="shrink-0 font-semibold">
-                  [{log.agent_address.length > 12 ? log.agent_address.substring(0, 10) : log.agent_address}]
+                  [{log.agent_address.length > 16 ? `${log.agent_address.slice(0, 8)}...${log.agent_address.slice(-4)}` : log.agent_address}]
                 </span>
                 <span className="text-[#c9d1d9] truncate">
                   write · blob_id=<span className="text-accent font-medium">{log.blob_id.substring(0, 10)}</span>... · type=<span className="font-medium">{typeStr}</span>

@@ -43,7 +43,7 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       return {
         id: m.blob_id,
         depth: 0,
-        width: 90,
+        width: 100,
         height: 26,
         memory: m,
         typeStr,
@@ -117,7 +117,7 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       .join('marker')
       .attr('id', String)
       .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 53) // offset for NODE_W/2 = 45 + marker + stroke = ~53
+      .attr('refX', 58) // offset for NODE_W/2 = 50 + marker + stroke = ~58
       .attr('refY', 0)
       .attr('markerWidth', 6)
       .attr('markerHeight', 6)
@@ -195,7 +195,7 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       .style('transition', 'stroke 200ms ease, stroke-width 200ms ease, filter 200ms ease');
 
     nodeG.append('text')
-      .text(d => d.id.substring(0, 10))
+      .text(d => `${d.typeStr.slice(0, 3)}:${d.id.substring(0, 8)}`)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('fill', d => d.typeColor)
@@ -216,7 +216,7 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       .alphaDecay(0.015)
       .velocityDecay(0.4)
       .on('tick', () => {
-        edgeSelection.attr('d', (e: any) => {
+        edgeSelection.attr('d', (e: EdgeDatum) => {
           const s = e.source as NodeDatum;
           const t = e.target as NodeDatum;
           const mx = (s.x! + t.x!) / 2;
@@ -266,9 +266,8 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
         <div 
           className="fixed bg-[#161b22] border border-[#30363d] p-3 text-[11px] font-mono rounded-sm pointer-events-none z-[999] shadow-lg flex flex-col gap-1"
           style={{ 
-            left: hoveredNode.x, 
-            top: hoveredNode.y + 16,
-            transform: 'translateX(-50%)'
+            left: Math.max(8, Math.min(hoveredNode.x - 120, window.innerWidth - 250)),
+            top: Math.min(hoveredNode.y + 16, window.innerHeight - 120),
           }}
         >
           <div className="text-accent text-[12px]">{hoveredNode.memory.blob_id}</div>

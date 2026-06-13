@@ -1,7 +1,8 @@
 import type { Memory, VerificationNode } from "./types.js";
 import { verifyContentHash, deserializeMemory } from "./memory.js";
 import type { MnemosyneClient } from "./client.js";
-import { readMemoryFromWalrus, verifyBlobExists } from "./walrus.js";
+import { bytesToUtf8 } from "./client.js";
+import { readMemoryFromWalrus } from "./walrus.js";
 
 export interface ReplayResult {
   rootMemory: Memory;
@@ -26,8 +27,7 @@ export async function replayFromDigest(
   if (!memoryEvent) return null;
 
   const parsed = memoryEvent.parsedJson as Record<string, unknown>;
-  const blobIdBytes = parsed.blob_id as number[];
-  const blobId = blobIdBytes?.map((b) => String.fromCharCode(b)).join("") || "";
+  const blobId = bytesToUtf8(parsed.blob_id);
 
   if (!blobId) return null;
 
@@ -37,34 +37,44 @@ export async function replayFromDigest(
 export async function replayFromBlobId(
   client: MnemosyneClient,
   blobId: string,
+  maxDepth: number = 20,
 ): Promise<ReplayResult | null> {
   const blobVerifications = new Map<string, boolean>();
   const fetched = new Map<string, Memory>();
 
-  async function fetchAndVerify(bId: string): Promise<Memory | null> {
+  async function fetchAndVerify(bId: string, depth: number): Promise<Memory | null> {
+    if (depth > maxDepth) return null;
     if (fetched.has(bId)) return fetched.get(bId)!;
 
+    let raw: string;
     try {
-      const raw = await readMemoryFromWalrus(client, bId);
-      const memory = deserializeMemory(raw);
-      const verified = verifyContentHash(memory);
-      blobVerifications.set(bId, verified);
-
-      memory.verified = verified;
-      fetched.set(bId, memory);
-
-      for (const parentId of memory.parent_memories) {
-        await fetchAndVerify(parentId);
-      }
-
-      return memory;
+      raw = await readMemoryFromWalrus(client, bId);
     } catch {
       blobVerifications.set(bId, false);
       return null;
     }
+
+    let memory: Memory;
+    try {
+      memory = deserializeMemory(raw, bId);
+    } catch (e) {
+      console.error(`Deserialization failed for blob ${bId}:`, e);
+      return null;
+    }
+    const verified = verifyContentHash(memory);
+    blobVerifications.set(bId, verified);
+
+    memory.verified = verified;
+    fetched.set(bId, memory);
+
+    for (const parentId of memory.parent_memories) {
+      await fetchAndVerify(parentId, depth + 1);
+    }
+
+    return memory;
   }
 
-  const rootMemory = await fetchAndVerify(blobId);
+  const rootMemory = await fetchAndVerify(blobId, 0);
   if (!rootMemory) return null;
 
   function buildTree(memory: Memory): VerificationNode {

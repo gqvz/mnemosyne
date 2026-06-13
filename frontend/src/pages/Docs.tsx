@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import '../landing.css';
 import { CodeBlock } from '../components/CodeBlock';
+import { LIVE_PACKAGE_ID } from '../components/useLiveData';
 
 const NAV = [
   { id: 'overview',      label: 'overview'       },
@@ -27,19 +28,29 @@ function DocSection({ id, label, children }: { id: string, label: string, childr
     </section>
   );
 }
-const codeString = `// connect to your agent swarm
-const client = new MnemosyneClient({ suiRpcUrl, walrusAggregatorUrl });
-const ns = await client.createNamespace('my-swarm');
+const codeString = `import { MnemosyneClient, buildMemory, serializeMemory } from '@mnemosyne/sdk';
+import { storeMemoryOnWalrus } from '@mnemosyne/sdk';
 
-// scout agent writes an observation
-await ns.writeMemory({
-  type: 'observation',
-  content: { price: 1.847, source: 'deepbook' },
-  parentIds: [],
+// Connect to Sui + Walrus
+const client = new MnemosyneClient({
+  privateKey: process.env.SUI_PRIVATE_KEY,
+  network: 'testnet',
+  packageId: '0xe50149...'
 });
 
-// strategist reads + acts
-const memories = await ns.listMemories({ type: 'observation' });`;
+// Create a namespace for your agent swarm
+const namespaceId = await client.createNamespace('my-swarm');
+await client.registerAgent(client.address, 'scout');
+
+// Scout agent writes an observation
+const obsPayload = { oracle: 'BTC-SVI', implied_vol: 45, svi_params: {} };
+const memory = buildMemory('', client.address, namespaceId, 'observation', obsPayload, [], 0, false);
+const serialized = serializeMemory(memory);
+const { blobId } = await storeMemoryOnWalrus(client, serialized);
+await client.writeMemoryIndex(blobId, memory.content_hash, 0, 0, false);
+
+// Query memory events on-chain
+const events = await client.queryMemoryEvents(20);`;
 
 export default function Docs() {
   const [activeId, setActiveId] = useState('overview');
@@ -126,7 +137,7 @@ export default function Docs() {
               borderRadius:3, padding:'12px 16px', marginTop:16,
               fontSize:12, color:'#3fb950',
             }}>
-              ● live on sui testnet · pkg: 0xcc2267a846f2a3cea8967bb38b27070f8fd0ac0d77faef4063e1bed9b6ad8d77
+              ● live on sui testnet · pkg: {LIVE_PACKAGE_ID}
             </div>
           </DocSection>
 
@@ -346,7 +357,7 @@ export default function Docs() {
 const client = new MnemosyneClient({
   suiRpcUrl: 'https://fullnode.testnet.sui.io',
   walrusAggregatorUrl: 'https://aggregator.walrus-testnet.walrus.space',
-  packageId: '0xcc2267a846f2a3cea8967bb38b27070f8fd0ac0d77faef4063e1bed9b6ad8d77',
+  packageId: '${LIVE_PACKAGE_ID}',
   privateKey: process.env.SUI_PRIVATE_KEY,
 });
 

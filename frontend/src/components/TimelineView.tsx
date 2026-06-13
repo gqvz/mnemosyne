@@ -69,10 +69,9 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
         }
       });
     });
-
     const times = nodesData.map(n => n.memory.timestamp);
-    const minTime = times.length > 0 ? Math.min(...times) : Date.now() - 10000;
-    const maxTime = times.length > 0 ? Math.max(...times) : Date.now();
+    const minTime = times.length > 0 ? Math.min(...times) : 1717800000000;
+    const maxTime = times.length > 0 ? Math.max(...times) : 1717800010000;
 
     return { 
       nodesData, 
@@ -101,10 +100,9 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
     const margin = { top: 40, right: 100, bottom: 40, left: 150 };
     const innerWidth = width - margin.left - margin.right;
 
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
+    const g = svg.append('g');
 
-    // Panning on the whole SVG
+    // Panning on the whole SVG — margin is baked into the initial zoom identity
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.5, 3.0])
       .on('zoom', (event) => {
@@ -112,19 +110,17 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
       });
     svg.call(zoom);
     
-    // reset g transform for zoom to pick up correctly from margin
-    g.attr('transform', `translate(${margin.left},${margin.top})`);
+    // Bake the margin into the initial zoom identity so zoom/pan are relative to it
     svg.call(zoom.transform, d3.zoomIdentity.translate(margin.left, margin.top));
 
     const xScale = d3.scaleTime()
       .domain(timeExtent)
       .range([0, innerWidth]);
 
-    const swimlaneY: Record<string, number> = {
-      'scout-01':      100,
-      'strategist-01': 230,
-      'executor-01':   360,
-    };
+    const swimlaneY: Record<string, number> = {};
+    swimlanes.forEach((agent, i) => {
+      swimlaneY[agent] = 100 + i * 130;
+    });
 
     const nodes: NodeDatum[] = nodesData.map(n => ({
       id: n.id,
@@ -261,7 +257,7 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
       .attr('font-size', 11)
       .attr('font-family', "'JetBrains Mono', monospace")
       .attr('fill', d => d.typeColor)
-      .text(d => d.id.substring(0, 10));
+      .text(d => `${getMemoryType(d.memory.memory_type).slice(0, 3)}:${d.id.substring(0, 8)}`);
 
   }, [nodesData, linksData, swimlanes, timeExtent, selectedId, onSelect]);
 
@@ -274,9 +270,8 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
         <div 
           className="fixed bg-[#161b22] border border-[#30363d] p-3 text-[11px] font-mono rounded-sm pointer-events-none z-[999] shadow-lg flex flex-col gap-1"
           style={{ 
-            left: hoveredNode.x, 
-            top: hoveredNode.y + 16,
-            transform: 'translateX(-50%)'
+            left: Math.max(8, Math.min(hoveredNode.x - 120, window.innerWidth - 250)),
+            top: Math.min(hoveredNode.y + 16, window.innerHeight - 120),
           }}
         >
           <div className="text-accent text-[12px]">{hoveredNode.memory.blob_id}</div>
