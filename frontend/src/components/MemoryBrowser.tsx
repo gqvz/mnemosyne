@@ -18,7 +18,7 @@ export default function MemoryBrowser() {
   const [viewType, setViewType] = useState<ViewType>('causal');
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const [filters, setFilters] = useState<FilterState>({
-    namespace: '',
+    namespace: new URLSearchParams(window.location.search).get('namespace') || '',
     agents: [],
     types: ['observation', 'decision', 'artifact', 'reflection'],
     encryptedOnly: false

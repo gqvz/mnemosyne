@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getMemoryType } from '../types';
 import type { MemoryIndex } from '../types';
 
@@ -9,6 +9,77 @@ interface BlobInspectorProps {
 
 export default function BlobInspector({ selectedBlob, onNavigateToParent }: BlobInspectorProps) {
   const [parentsExpanded, setParentsExpanded] = useState(false);
+  const [blobContent, setBlobContent] = useState<string | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [isEncrypted, setIsEncrypted] = useState(false);
+  const [decrypting, setDecrypting] = useState(false);
+  const [decryptedText, setDecryptedText] = useState<string | null>(null);
+  const [decryptError, setDecryptError] = useState<string | null>(null);
+
+  const namespaceId = new URLSearchParams(window.location.search).get('namespace') || '';
+
+  useEffect(() => {
+    if (!selectedBlob) {
+      setBlobContent(null);
+      setIsEncrypted(false);
+      setDecryptedText(null);
+      setDecryptError(null);
+      return;
+    }
+    setLoadingContent(true);
+    setContentError(null);
+    setBlobContent(null);
+    setIsEncrypted(false);
+    setDecryptedText(null);
+    setDecryptError(null);
+
+    const aggregatorUrl = import.meta.env.VITE_WALRUS_AGGREGATOR || 'https://aggregator.walrus-testnet.walrus.space';
+    fetch(`${aggregatorUrl}/v1/blobs/${selectedBlob.blob_id}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(text => {
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed && parsed.encrypted === true) {
+            setIsEncrypted(true);
+          } else {
+            setBlobContent(JSON.stringify(parsed.content || parsed, null, 2));
+            setIsEncrypted(false);
+          }
+        } catch {
+          setIsEncrypted(true);
+        }
+      })
+      .catch(err => {
+        setContentError(err.message || String(err));
+      })
+      .finally(() => {
+        setLoadingContent(false);
+      });
+  }, [selectedBlob]);
+
+  const handleDecrypt = async () => {
+    if (!selectedBlob) return;
+    setDecrypting(true);
+    setDecryptError(null);
+    try {
+      const res = await fetch(`http://localhost:3001/api/memory/${namespaceId}/${selectedBlob.blob_id}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const parsed = JSON.parse(data.text);
+      setDecryptedText(JSON.stringify(parsed.content || parsed, null, 2));
+    } catch (err: any) {
+      setDecryptError(err.message || String(err));
+    } finally {
+      setDecrypting(false);
+    }
+  };
 
   if (!selectedBlob) {
     return (
@@ -60,8 +131,8 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
           </div>
           <div>
             <div className="meta mb-0.5">encrypted</div>
-            <span className="inline-block px-2 py-0.5 border border-[#f78166] text-[#f78166] rounded-sm bg-[#f781661a] data font-medium">
-              encrypted
+            <span className={`inline-block px-2 py-0.5 border rounded-sm bg-opacity-10 data font-medium ${isEncrypted ? 'border-[#f78166] text-[#f78166] bg-[#f781661a]' : 'border-[#3fb950] text-[#3fb950] bg-[#3fb9501a]'}`}>
+              {isEncrypted ? 'encrypted' : 'plaintext'}
             </span>
           </div>
           <div>
@@ -125,6 +196,50 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
           </div>
         )}
 
+
+        <section className="flex flex-col gap-2 mt-4 pt-4 border-t border-[#21262d]">
+          <h3 className="label">Memory Content</h3>
+          {isEncrypted ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-[#8b949e] italic" style={{ fontSize: 10 }}>This memory is encrypted with SEAL.</span>
+              {decryptedText ? (
+                <pre className="bg-[#0d1117] p-2 rounded border border-[#30363d] text-[10px] overflow-x-auto text-[#c9d1d9] max-h-[200px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {decryptedText}
+                </pre>
+              ) : (
+                <button
+                  onClick={handleDecrypt}
+                  disabled={decrypting}
+                  className="px-2 py-1 text-white rounded font-mono text-[11px]"
+                  style={{
+                    backgroundColor: 'var(--color-decision)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    borderRadius: 3,
+                    padding: '4px 8px'
+                  }}
+                >
+                  {decrypting ? 'Decrypting...' : 'Request Decrypt Access'}
+                </button>
+              )}
+              {decryptError && (
+                <span className="text-[#f78166] text-[10px] break-all">{decryptError}</span>
+              )}
+            </div>
+          ) : (
+            <div>
+              {loadingContent ? (
+                <span className="text-muted">Loading content...</span>
+              ) : contentError ? (
+                <span className="text-danger">Error: {contentError}</span>
+              ) : (
+                <pre className="bg-[#0d1117] p-2 rounded border border-[#30363d] text-[10px] overflow-x-auto text-[#c9d1d9] max-h-[200px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {blobContent || 'No content found'}
+                </pre>
+              )}
+            </div>
+          )}
+        </section>
 
       </div>
     </div>
