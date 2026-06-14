@@ -1,8 +1,6 @@
 import type { MnemosyneClient } from "./client.js";
 import { MemWal } from "@mysten-incubation/memwal";
 
-const WALRUS_TESTNET_AGGREGATOR = "https://aggregator.walrus-testrus.walrus.space";
-
 /** Optional per-call override for MemWal connection settings. When omitted, the
  *  functions fall back to the MEMWAL_* environment variables. */
 export interface MemWalConfig {
@@ -30,7 +28,7 @@ export async function storeMemoryOnWalrus(
   const memwal = createMemWal(client, memwalConfig);
 
   console.log(`[MemWal SDK] Uploading memory to MemWal Relayer...`);
-  const result = await memwal.rememberAndWait(content, client.namespaceId, { timeoutMs: 90000 });
+  const result = await memwal.rememberAndWait(content, client.namespaceId, { timeoutMs: 90000, pollIntervalMs: 5000 });
   return {
     blobId: result.blob_id,
     blobObjectId: result.id,

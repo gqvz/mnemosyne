@@ -30,27 +30,26 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
     setLoadingContent(true);
     setContentError(null);
     setBlobContent(null);
-    setIsEncrypted(false);
+    setIsEncrypted(selectedBlob.is_encrypted);
     setDecryptedText(null);
     setDecryptError(null);
 
-    const aggregatorUrl = import.meta.env.VITE_WALRUS_AGGREGATOR || 'https://aggregator.walrus-testnet.walrus.space';
-    fetch(`${aggregatorUrl}/v1/blobs/${selectedBlob.blob_id}`)
+    if (selectedBlob.is_encrypted) {
+      setLoadingContent(false);
+      return;
+    }
+
+    fetch(`http://localhost:3001/api/memory/${namespaceId}/${selectedBlob.blob_id}`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.text();
+        return res.json();
       })
-      .then(text => {
+      .then(data => {
         try {
-          const parsed = JSON.parse(text);
-          if (parsed && parsed.encrypted === true) {
-            setIsEncrypted(true);
-          } else {
-            setBlobContent(JSON.stringify(parsed.content || parsed, null, 2));
-            setIsEncrypted(false);
-          }
+          const parsed = JSON.parse(data.text);
+          setBlobContent(JSON.stringify(parsed.content || parsed, null, 2));
         } catch {
-          setIsEncrypted(true);
+          setBlobContent(data.text);
         }
       })
       .catch(err => {
@@ -59,7 +58,7 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
       .finally(() => {
         setLoadingContent(false);
       });
-  }, [selectedBlob]);
+  }, [selectedBlob, namespaceId]);
 
   const handleDecrypt = async () => {
     if (!selectedBlob) return;
@@ -72,8 +71,12 @@ export default function BlobInspector({ selectedBlob, onNavigateToParent }: Blob
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      const parsed = JSON.parse(data.text);
-      setDecryptedText(JSON.stringify(parsed.content || parsed, null, 2));
+      try {
+        const parsed = JSON.parse(data.text);
+        setDecryptedText(JSON.stringify(parsed.content || parsed, null, 2));
+      } catch {
+        setDecryptedText(data.text);
+      }
     } catch (err: any) {
       setDecryptError(err.message || String(err));
     } finally {
