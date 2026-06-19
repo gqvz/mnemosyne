@@ -1,4 +1,5 @@
 # mnemosyne
+<img width="688" height="360" alt="readme" src="https://github.com/user-attachments/assets/7bba0fab-84f6-4586-9bc4-e82e4243bd41" />
 
 built for sui overflow 2026. persistent memory layer for agent swarms on sui.
 
