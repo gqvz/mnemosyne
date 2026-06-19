@@ -17,7 +17,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/docs" element={<Docs />} />
-            <Route path="/browser" element={<MemoryBrowser />} />
+            <Route path="/browser/:namespaceId?" element={<MemoryBrowser />} />
           </Routes>
         </BrowserRouter>
       </DAppKitProvider>

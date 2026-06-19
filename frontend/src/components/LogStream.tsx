@@ -92,7 +92,7 @@ export default function LogStream({ logs }: LogStreamProps) {
         onScroll={handleScroll}
       >
         <div className="flex flex-col gap-1.5 pb-2">
-          {logs.map((log) => {
+          {[...logs].reverse().map((log) => {
             const typeStr = getMemoryType(log.memory_type);
             const agentColor = getAgentColor(log.agent_address);
             

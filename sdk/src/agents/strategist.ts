@@ -62,7 +62,13 @@ export class StrategistAgent {
         if (observations.length === 0) return;
         const decision = await strategyFn(observations);
         if (decision) {
-          const parentIds = observations.map((o) => o.blob_id);
+          const parentIds = [...observations.map((o) => o.blob_id)];
+          const extraParents = decision.parent_reflections || [];
+          for (const ep of extraParents) {
+            if (ep && !parentIds.includes(ep)) {
+              parentIds.push(ep);
+            }
+          }
           const memory = buildMemory(
             "",
             this.client.address,
@@ -131,7 +137,13 @@ export class StrategistAgent {
         if (observations.length === 0) return;
         const decision = await strategyFn(observations);
         if (decision) {
-          const parentIds = observations.map((o) => o.blob_id);
+          const parentIds = [...observations.map((o) => o.blob_id)];
+          const extraParents = decision.parent_reflections || [];
+          for (const ep of extraParents) {
+            if (ep && !parentIds.includes(ep)) {
+              parentIds.push(ep);
+            }
+          }
           const memory = buildMemory(
             "",
             this.client.address,

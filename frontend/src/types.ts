@@ -8,6 +8,7 @@ export interface MemoryIndex {
   is_encrypted: boolean;
   agent_address: string;
   timestamp: number;
+  suiscan_url: string;
   // added for ui:
   id?: string;
 }

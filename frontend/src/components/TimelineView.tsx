@@ -6,6 +6,8 @@ import type { MemoryIndex } from '../types';
 interface TimelineViewProps {
   memories: MemoryIndex[];
   selectedId: string | null;
+  highlightedIds: Set<string>;
+  replayIds: Set<string>;
   onSelect: (memory: MemoryIndex) => void;
 }
 
@@ -15,6 +17,10 @@ const TYPE_COLORS = {
   artifact: '#f78166',
   reflection: '#d2a8ff',
 };
+
+const TL_W = 80;
+const TL_H = 24;
+
 
 interface NodeDatum {
   id: string;
@@ -29,7 +35,7 @@ interface EdgeDatum {
   target: string;
 }
 
-export default function TimelineView({ memories, selectedId, onSelect }: TimelineViewProps) {
+export default function TimelineView({ memories, selectedId, highlightedIds, replayIds, onSelect }: TimelineViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredNode, setHoveredNode] = useState<{ x: number; y: number; memory: MemoryIndex } | null>(null);
 
@@ -171,11 +177,11 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
     gX.selectAll('.domain, .tick line').attr('stroke', '#21262d');
 
     svg.append('defs').selectAll('marker')
-      .data(['arrow'])
+      .data(['arrow-timeline'])
       .join('marker')
       .attr('id', String)
       .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 8)
+      .attr('refX', 10)
       .attr('refY', 0)
       .attr('markerWidth', 6)
       .attr('markerHeight', 6)
@@ -194,20 +200,27 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
       const s = nodeMap.get(e.source);
       const t = nodeMap.get(e.target);
       if (!s || !t) return '';
-      const mx = (s.x + t.x) / 2;
-      return `M${s.x},${s.y} C${mx},${s.y} ${mx},${t.y} ${t.x},${t.y}`;
+      
+      const sourceX = s.x + TL_W / 2;
+      const sourceY = s.y;
+      const targetX = t.x - TL_W / 2;
+      const targetY = t.y;
+      
+      const mx = (sourceX + targetX) / 2;
+      return `M${sourceX},${sourceY} C${mx},${sourceY} ${mx},${targetY} ${targetX},${targetY}`;
     }
 
     g.append('g')
       .selectAll('path')
       .data(linksData)
       .join('path')
+      .attr('class', 'edge-path')
       .attr('d', getEdgePath)
       .attr('fill', 'none')
       .attr('stroke', '#6e7681')
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 1.5)
-      .attr('marker-end', 'url(#arrow)');
+      .attr('marker-end', 'url(#arrow-timeline)');
 
     const nodeG = g.append('g')
       .selectAll('.node')
@@ -239,7 +252,7 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
         setHoveredNode(null);
       });
 
-    const TL_W = 80, TL_H = 24;
+
 
     nodeG.append('rect')
       .attr('x', -TL_W/2).attr('y', -TL_H/2)
@@ -266,11 +279,59 @@ export default function TimelineView({ memories, selectedId, onSelect }: Timelin
     const svg = d3.select(containerRef.current).select('svg');
     if (svg.empty()) return;
 
-    svg.selectAll('.node rect')
-      .attr('stroke', d => (d as NodeDatum).id === selectedId ? '#ffffff' : (d as NodeDatum).typeColor)
-      .attr('stroke-width', d => (d as NodeDatum).id === selectedId ? 2.5 : 1)
-      .attr('filter', d => (d as NodeDatum).id === selectedId ? 'url(#glow-timeline)' : null);
-  }, [selectedId]);
+    const hasSelection = selectedId !== null;
+
+    svg.selectAll<SVGGElement, NodeDatum>('.node')
+      .style('opacity', d => {
+        if (!hasSelection) return 1;
+        return highlightedIds.has(d.id) ? 1 : 0.2;
+      });
+
+    svg.selectAll<SVGRectElement, NodeDatum>('.node rect')
+      .attr('stroke', d => {
+        if (!hasSelection) return d.typeColor;
+        if (highlightedIds.has(d.id)) {
+          if (replayIds.has(d.id)) {
+            return d.id === selectedId ? '#ffffff' : d.typeColor;
+          }
+          return '#30363d'; // Unrevealed nodes get a dark gray outline
+        }
+        return d.typeColor;
+      })
+      .attr('stroke-width', d => {
+        if (!hasSelection) return 1;
+        if (d.id === selectedId && replayIds.has(d.id)) return 2.5;
+        if (highlightedIds.has(d.id)) {
+          return replayIds.has(d.id) ? 2.5 : 1.0;
+        }
+        return 1;
+      })
+      .attr('filter', d => {
+        if (hasSelection && highlightedIds.has(d.id) && replayIds.has(d.id) && d.id === selectedId) {
+          return 'url(#glow-timeline)';
+        }
+        return null;
+      });
+
+    svg.selectAll<SVGPathElement, EdgeDatum>('.edge-path')
+      .style('stroke-opacity', e => {
+        if (!hasSelection) return 0.6;
+        return (replayIds.has(e.source) && replayIds.has(e.target)) ? 1 : 0.15;
+      })
+      .attr('stroke', e => {
+        if (!hasSelection) return '#6e7681';
+        if (replayIds.has(e.source) && replayIds.has(e.target)) {
+          const targetNode = nodesData.find(n => n.id === e.target);
+          return targetNode?.typeColor || '#6e7681';
+        }
+        return '#30363d';
+      })
+      .attr('stroke-width', e => {
+        if (!hasSelection) return 1.5;
+        return (replayIds.has(e.source) && replayIds.has(e.target)) ? 2.5 : 1.0;
+      });
+
+  }, [selectedId, highlightedIds, replayIds, nodesData]);
 
   return (
     <div className="w-full h-full bg-bg-center relative text-[13px]">

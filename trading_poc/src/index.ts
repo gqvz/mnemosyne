@@ -22,6 +22,12 @@ import {
   ScoutAgent,
   StrategistAgent,
   ExecutorAgent,
+  buildMemory,
+  serializeMemory,
+  storeMemoryOnWalrus,
+  bytesToUtf8,
+  readMemoryFromWalrus,
+  deserializeMemory,
 } from "@mnemosyne/sdk";
 
 
@@ -58,27 +64,16 @@ async function runPoC() {
   console.log(`[Master] Balance: ${balanceVal / 1_000_000_000} SUI`);
   console.log(`[Master] Package: ${masterClient.packageId}\n`);
 
-  // Dynamically scale agent swarm based on available balance
-  let numScouts = 5;
-  let numStrategists = 4;
-  let numExecutors = 2;
-  let fundAmount = 20_000_000; // 0.02 SUI default
-  let buffer = 25_000_000;     // 0.025 SUI safety buffer
+  // Configure exactly 1 Scout, 1 Strategist, and 1 Executor for the sequential run
+  let numScouts = 1;
+  let numStrategists = 1;
+  let numExecutors = 1;
+  let fundAmount = 200_000_000; // 0.2 SUI per agent (plenty of gas for all txs)
+  let buffer = 120_000_000;    // 0.12 SUI safety buffer for master
   
-  if (balanceVal < 95_000_000) {
-    console.log("[!] Extremely low SUI balance — scaling down to 2/2/2 swarm.");
-    numScouts = 2;
-    numStrategists = 2;
-    numExecutors = 2;
-    fundAmount = 1_800_000;
-    buffer = 2_500_000;
-  } else if (balanceVal < 400_000_000) {
-    console.log("[!] Low SUI balance — scaling down to 3/3/2 swarm.");
-    numScouts = 3;
-    numStrategists = 3;
-    numExecutors = 2;
-    fundAmount = 10_000_000;
-    buffer = 15_000_000;
+  if (balanceVal < (numScouts + numStrategists + numExecutors) * fundAmount + buffer) {
+    console.log("[!] Low SUI balance — dynamically adjusting agent funding.");
+    fundAmount = Math.max(1_000_000, Math.floor((balanceVal - buffer) / (numScouts + numStrategists + numExecutors)));
   }
 
   const totalAgents = numScouts + numStrategists + numExecutors;
@@ -101,14 +96,25 @@ async function runPoC() {
   masterClient.namespaceId = namespaceId;
   console.log(`[Namespace] Created: ${namespaceId}\n`);
 
-  // 3. Generate Agent Keypairs (unique keys per agent)
-  console.log("--- 1. Generating Unique Keys for Agents ---");
+  // 3. Generate or Load Agent Keypairs (persist keys in .env to reuse SUI funds)
+  console.log("--- 1. Loading/Generating Unique Keys for Agents ---");
   const agentKeypairs: Ed25519Keypair[] = [];
   const agentAddresses: string[] = [];
   const agentPrivateKeys: string[] = [];
   
+  const fs = await import("fs");
   for (let i = 0; i < totalAgents; i++) {
-    const kp = Ed25519Keypair.generate();
+    const envKey = process.env[`AGENT_${i}_PRIVATE_KEY`];
+    let kp: Ed25519Keypair;
+    if (envKey) {
+      kp = Ed25519Keypair.fromSecretKey(envKey);
+      console.log(`  Loaded Agent ${i} from .env: ${kp.toSuiAddress()}`);
+    } else {
+      kp = Ed25519Keypair.generate();
+      const secretKey = kp.getSecretKey(); // bech32 format
+      fs.appendFileSync(".env", `\nAGENT_${i}_PRIVATE_KEY="${secretKey}"`);
+      console.log(`  Generated new Agent ${i} and saved to .env: ${kp.toSuiAddress()}`);
+    }
     agentKeypairs.push(kp);
     agentAddresses.push(kp.toSuiAddress());
     agentPrivateKeys.push(kp.getSecretKey());
@@ -119,18 +125,37 @@ async function runPoC() {
   console.log(`    Strategists: ${agentAddresses.slice(numScouts, numScouts + numStrategists).map(a => a.slice(0, 8)).join(", ")}...`);
   console.log(`    Executors:   ${agentAddresses.slice(numScouts + numStrategists, totalAgents).map(a => a.slice(0, 8)).join(", ")}...`);
 
-  // 4. Fund All Agents via Batch PTB
+  // 4. Fund All Agents via Batch PTB (delta-funding to preserve funds)
   console.log("\n--- 2. Funding Agents with SUI (Batch PTB) ---");
   const fundTx = new Transaction();
-  const coins = fundTx.splitCoins(
-    fundTx.gas,
-    Array(totalAgents).fill(null).map(() => fundTx.pure.u64(fundAmount))
-  );
+  let needsFunding = false;
+  const fundTargets: { address: string; amount: number }[] = [];
+
   for (let i = 0; i < totalAgents; i++) {
-    fundTx.transferObjects([coins[i]], fundTx.pure.address(agentAddresses[i]));
+    const bal = await masterClient.client.getBalance({ owner: agentAddresses[i] });
+    const currentBal = Number(bal.totalBalance);
+    if (currentBal < fundAmount) {
+      const needed = fundAmount - currentBal;
+      fundTargets.push({ address: agentAddresses[i], amount: needed });
+      needsFunding = true;
+    } else {
+      console.log(`  Agent ${i} (${agentAddresses[i].slice(0, 10)}...) already has ${currentBal / 1_000_000_000} SUI.`);
+    }
   }
-  const fundDigest = await masterClient.signAndExecute(fundTx);
-  console.log(`  Funded all ${totalAgents} agents. Digest: ${fundDigest}`);
+
+  if (needsFunding) {
+    const coins = fundTx.splitCoins(
+      fundTx.gas,
+      fundTargets.map(t => fundTx.pure.u64(t.amount))
+    );
+    for (let i = 0; i < fundTargets.length; i++) {
+      fundTx.transferObjects([coins[i]], fundTx.pure.address(fundTargets[i].address));
+    }
+    const fundDigest = await masterClient.signAndExecute(fundTx);
+    console.log(`  Funded ${fundTargets.length} agents. Digest: ${fundDigest}`);
+  } else {
+    console.log("  All agents are already fully funded.");
+  }
 
   // 5. Batch Register Agents On-Chain
   console.log("\n--- 3. Registering Agents on-chain (Batch PTB) ---");
@@ -148,8 +173,22 @@ async function runPoC() {
     });
     regTx.transferObjects([reg], masterClient.address);
   }
+
+  // Register the user's browser/viewer address so they have on-chain namespace access
+  const userBrowserAddress = "0xe01bb616ffccafe6efe34f698fec841ddae64ffb69e896f558e5ee5f1cfeef0f";
+  const [userReg] = regTx.moveCall({
+    target: `${masterClient.packageId}::memory::register_agent`,
+    arguments: [
+      regTx.object(masterClient.namespaceId),
+      regTx.pure.address(userBrowserAddress),
+      regTx.pure.vector("u8", Array.from(Buffer.from("viewer"))),
+      regTx.object.clock(),
+    ],
+  });
+  regTx.transferObjects([userReg], masterClient.address);
+
   const regDigest = await masterClient.signAndExecute(regTx);
-  console.log(`  Registered ${totalAgents} agents. Digest: ${regDigest}`);
+  console.log(`  Registered ${totalAgents} agents and browser address (${userBrowserAddress.slice(0, 10)}...). Digest: ${regDigest}`);
 
   // Wait for balance to propagate before agents start spending gas
   console.log("  Waiting for on-chain balance propagation...");
@@ -182,6 +221,7 @@ async function runPoC() {
   const scouts: InstanceType<typeof ScoutAgent>[] = [];
   const strategists: InstanceType<typeof StrategistAgent>[] = [];
   const executors: InstanceType<typeof ExecutorAgent>[] = [];
+  const agentClients: MnemosyneClient[] = [];
 
   for (let i = 0; i < totalAgents; i++) {
     const agentClient = new MnemosyneClient({
@@ -191,6 +231,7 @@ async function runPoC() {
       namespaceId: masterClient.namespaceId,
       suiRpcUrl: process.env.SUI_RPC_URL,
     });
+    agentClients.push(agentClient);
 
     if (i < numScouts) {
       scouts.push(new ScoutAgent({
@@ -220,11 +261,64 @@ async function runPoC() {
   for (const strat of strategists) {
     strat.startThreadSafe(async (observations) => {
       const avgVol = observations.reduce((acc, o) => acc + ((o.content as Record<string,number>).implied_vol || 0), 0) / observations.length;
+      
+      let proposedAction: "mint_predict" | "skip" | "supply" | "redeem" = avgVol > 50 ? "supply" : "mint_predict";
+      let confidence = Math.round(avgVol * 10) / 1000;
+      let rationale = `SVI pricing decision — avg implied vol: ${Math.round(avgVol * 100) / 100}`;
+
+      // Query recent reflections to learn from previous mistakes
+      const maxReflectionsCount = 3;
+      const recentReflections: any[] = [];
+      try {
+        console.log(`[Strategist:${strat.client.address.slice(0, 8)}] Fetching last ${maxReflectionsCount} reflections...`);
+        const events = await strat.client.queryMemoryEvents(50, strat.client.namespaceId);
+        const reflectionEvents = events.filter(e => e.memory_type === 3).slice(0, maxReflectionsCount);
+        
+        for (const re of reflectionEvents) {
+          const blobId = bytesToUtf8(re.blob_id);
+          if (blobId) {
+            try {
+              const raw = await readMemoryFromWalrus(strat.client, blobId, sharedMemwalConfig);
+              const refMemory = deserializeMemory(raw, blobId);
+              recentReflections.push(refMemory);
+            } catch (err) {
+              console.warn(`[Strategist] Failed to fetch/deserialize reflection blob ${blobId}:`, (err as Error).message);
+            }
+          }
+        }
+
+        if (recentReflections.length > 0) {
+          console.log(`[Strategist:${strat.client.address.slice(0, 8)}] Retrieved ${recentReflections.length} previous reflections.`);
+          for (const ref of recentReflections) {
+            const perf = ref.content?.performance_score ?? 1.0;
+            const learnings = ref.content?.key_learnings || [];
+            console.log(`  - Reflection ${ref.blob_id.slice(0, 8)}: Score=${perf}, Learnings="${learnings.join(', ')}"`);
+            
+            if (perf < 0.5) {
+              const notes = ref.content?.notes || "";
+              // Check if notes indicate a failure of our proposed action
+              if (notes.includes(`action ${proposedAction}`)) {
+                console.log(`[Strategist:${strat.client.address.slice(0, 8)}] ⚠️ ALERT: Previous trade with action '${proposedAction}' was a mistake (Score: ${perf}). Learning from mistake: skipping trade.`);
+                proposedAction = "skip";
+                confidence = 0.0;
+                rationale += ` | Adjusted to skip because previous '${proposedAction}' trade failed (Ref: ${ref.blob_id.slice(0, 8)}).`;
+                break;
+              }
+            }
+          }
+        } else {
+          console.log(`[Strategist:${strat.client.address.slice(0, 8)}] No previous reflections found yet.`);
+        }
+      } catch (err) {
+        console.warn(`[Strategist:${strat.client.address.slice(0, 8)}] Failed to query or analyze reflections:`, (err as Error).message);
+      }
+
       return {
-        action: avgVol > 50 ? "supply" : "mint_predict",
-        confidence: Math.round(avgVol * 10) / 1000,
-        rationale: `SVI pricing decision — avg implied vol: ${Math.round(avgVol * 100) / 100}`,
+        action: proposedAction,
+        confidence,
+        rationale,
         parent_observations: observations.map(o => o.blob_id).sort(),
+        parent_reflections: recentReflections.map(r => r.blob_id).sort(),
       };
     }, 1); // max_uses=1: only ONE executor can claim this decision
   }
@@ -243,32 +337,140 @@ async function runPoC() {
     });
   }
 
-  // 8. Scout Writes Shared Observation (max_uses=2: only 2 strategists may analyze it)
-  console.log("\n--- 5. Triggering Scout Observation (max_uses: 2) ---");
-  console.log(`  1 shared observation with 2 claim slots — ${numStrategists} strategists competing.`);
-  console.log(`  Sui's sequencer guarantees only 2 claims succeed (EMemoryExhausted for the rest).`);
-  await scouts[0].recordSharedObservation(createRandomObservation(0), 2);
+  // 8. Run 10 Sequential Pipeline Iterations (Scout → Strategist → Executor → Reflector)
+  console.log("\n--- 5. Running 10 Sequential Pipeline Iterations ---");
+  console.log(`  Target: 10 Observations, 10 Decisions, 10 Artifacts, 10 Reflections`);
 
-  // 9. Wait for Full Pipeline to Complete
-  console.log("\n--- 6. Waiting for Pipeline Completion (observation → decision → artifact) ---");
-  const targetCount = 3;
-  for (let elapsed = 0; elapsed < 90; elapsed += 5) {
+  const reflectedArtifacts = new Set<string>();
+
+  const writeReflectionForArtifact = async (artifactEvent: Record<string, any>) => {
+    const artifactBlobId = bytesToUtf8(artifactEvent.blob_id);
+    if (reflectedArtifacts.has(artifactBlobId)) return;
+    reflectedArtifacts.add(artifactBlobId);
+
+    console.log(`  [Reflector] Reflecting on Artifact: ${artifactBlobId.slice(0, 16)}...`);
+    
+    // Retrieve the artifact memory from Walrus to get details (PnL, action)
+    let pnl = 0;
+    let action = "unknown";
     try {
-      const nsObj = await masterClient.client.getObject({
-        id: masterClient.namespaceId,
-        options: { showContent: true },
-      });
-      const memoryCount = Number((nsObj.data?.content as {fields?: {memory_count?: unknown}})?.fields?.memory_count || 0);
-      console.log(`  memory_count: ${memoryCount}/${targetCount}  (${elapsed}s elapsed)`);
-      if (memoryCount >= targetCount) {
-        console.log(`  [✓] Full pipeline complete — all ${targetCount} memory writes on-chain!`);
+      const rawArtifact = await readMemoryFromWalrus(masterClient, artifactBlobId, sharedMemwalConfig);
+      const artifactMemory = deserializeMemory(rawArtifact, artifactBlobId);
+      pnl = artifactMemory.content?.pnl ?? 0;
+      
+      // Traverse to parent decision memory to identify the target action
+      if (artifactMemory.parent_memories && artifactMemory.parent_memories.length > 0) {
+        const decisionBlobId = artifactMemory.parent_memories[0];
+        try {
+          const rawDecision = await readMemoryFromWalrus(masterClient, decisionBlobId, sharedMemwalConfig);
+          const decisionMemory = deserializeMemory(rawDecision, decisionBlobId);
+          action = decisionMemory.content?.action ?? "unknown";
+        } catch (decErr) {
+          console.warn(`  [Reflector] Failed to fetch decision memory ${decisionBlobId}:`, (decErr as Error).message);
+        }
+      }
+      console.log(`  [Reflector] Retrieved artifact details: action=${action}, PnL=${pnl.toFixed(4)}`);
+    } catch (err) {
+      console.warn(`  [Reflector] Failed to fetch artifact details from Walrus:`, (err as Error).message);
+    }
+
+    // Determine performance score and learnings based on PnL
+    const performanceScore = pnl >= 0 ? 0.95 : 0.2;
+    const learnings = pnl >= 0
+      ? [`Trade action '${action}' succeeded with positive PnL of ${pnl.toFixed(4)}.`]
+      : [`Trade action '${action}' failed with negative PnL of ${pnl.toFixed(4)}. Avoid or reduce confidence for '${action}' under similar conditions.`];
+
+    const reflectionPayload = {
+      summary: `Strategy performance review for execution ${artifactBlobId.slice(0, 8)}`,
+      key_learnings: learnings,
+      performance_score: performanceScore,
+      referenced_memories: [artifactBlobId],
+      notes: `Reflected on action ${action} with PnL ${pnl.toFixed(4)}`,
+    };
+
+    const memory = buildMemory(
+      "",
+      masterClient.address,
+      masterClient.namespaceId,
+      "reflection",
+      reflectionPayload,
+      [artifactBlobId],
+      3, // depth
+      false, // encrypted
+    );
+    const serialized = serializeMemory(memory);
+    const { blobId } = await storeMemoryOnWalrus(masterClient, serialized, false, 1, sharedMemwalConfig);
+    await masterClient.writeMemoryIndex(blobId, memory.content_hash, 3, [artifactBlobId], false);
+    console.log(`  [Reflector] [✓] Written Reflection: blob ${blobId.slice(0, 16)}...`);
+  };
+
+  for (let step = 1; step <= 10; step++) {
+    console.log(`\n---------------------------------------------------------`);
+    console.log(`              PIPELINE ITERATION ${step} / 10`);
+    console.log(`---------------------------------------------------------`);
+
+    // 1. Scout records shared observation
+    console.log(`  [Scout] Recording observation ${step}...`);
+    const obsBlobId = await scouts[0].recordSharedObservation(createRandomObservation(step), 1);
+
+    // 2. Wait for strategist to make decision
+    console.log(`  Waiting for decision referencing observation ${obsBlobId.slice(0, 8)}...`);
+    let decisionBlobId = "";
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await sleep(2500);
+      const events = await masterClient.queryMemoryEvents(50, masterClient.namespaceId);
+      const decisionEvt = events.find(e => e.memory_type === 1 && Array.isArray(e.parent_memories) && (e.parent_memories as any[]).some((p: any) => bytesToUtf8(p) === obsBlobId));
+      if (decisionEvt) {
+        decisionBlobId = bytesToUtf8(decisionEvt.blob_id);
+        console.log(`  [✓] Decision found: ${decisionBlobId.slice(0, 16)}...`);
         break;
       }
-    } catch (err) {
-      console.log(`  Could not query namespace: ${(err as Error).message}`);
     }
-    await sleep(5000);
-    if (elapsed + 5 >= 90) console.log("[!] Timeout — reporting current state.");
+    if (!decisionBlobId) {
+      console.warn(`  [!] Timeout waiting for decision — skipping iteration`);
+      continue;
+    }
+
+    // 3. Wait for executor to execute artifact
+    console.log(`  Waiting for artifact referencing decision ${decisionBlobId.slice(0, 8)}...`);
+    let artifactBlobId = "";
+    let artifactEvt: any = null;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await sleep(2500);
+      const events = await masterClient.queryMemoryEvents(50, masterClient.namespaceId);
+      artifactEvt = events.find(e => e.memory_type === 2 && Array.isArray(e.parent_memories) && (e.parent_memories as any[]).some((p: any) => bytesToUtf8(p) === decisionBlobId));
+      if (artifactEvt) {
+        artifactBlobId = bytesToUtf8(artifactEvt.blob_id);
+        console.log(`  [✓] Artifact found: ${artifactBlobId.slice(0, 16)}...`);
+        break;
+      }
+    }
+    if (!artifactBlobId || !artifactEvt) {
+      console.warn(`  [!] Timeout waiting for artifact — skipping iteration`);
+      continue;
+    }
+
+    // 4. Record reflection for this artifact
+    await writeReflectionForArtifact(artifactEvt);
+  }
+
+  // 9. Verify the final memory count (10 of each type = 40 total)
+  console.log("\n--- 6. Verifying Final Namespace Memory Count ---");
+  const targetCount = 40;
+  try {
+    const nsObj = await masterClient.client.getObject({
+      id: masterClient.namespaceId,
+      options: { showContent: true },
+    });
+    const memoryCount = Number((nsObj.data?.content as {fields?: {memory_count?: unknown}})?.fields?.memory_count || 0);
+    console.log(`  Final memory_count on-chain: ${memoryCount} / ${targetCount}`);
+    if (memoryCount >= targetCount) {
+      console.log(`  [✓] All ${targetCount} memory writes successfully stored on-chain!`);
+    } else {
+      console.warn(`  [!] Warning: Expected ${targetCount} memories, but found ${memoryCount}`);
+    }
+  } catch (err) {
+    console.error(`  Could not query final namespace state: ${(err as Error).message}`);
   }
 
   // 10. Stop Agent Loops
@@ -316,6 +518,26 @@ async function runPoC() {
     }
   } catch (err) {
     console.error("[-] Failed to fetch claims report:", err);
+  }
+
+  console.log("\n--- 8. Refunding Remaining SUI from Agents to Master Wallet ---");
+  for (let i = 0; i < agentClients.length; i++) {
+    try {
+      const client = agentClients[i];
+      const bal = await client.client.getBalance({ owner: client.address });
+      const currentBal = Number(bal.totalBalance);
+      if (currentBal > 10_000_000) {
+        console.log(`  Refunding ${currentBal / 1_000_000_000} SUI from Agent ${i} (${client.address.slice(0, 10)}...)...`);
+        const refundTx = new Transaction();
+        refundTx.transferObjects([refundTx.gas], masterClient.address);
+        const digest = await client.signAndExecute(refundTx);
+        console.log(`  [✓] Refunded. Digest: ${digest}`);
+      } else {
+        console.log(`  Agent ${i} has insufficient SUI to refund (${currentBal / 1_000_000_000} SUI).`);
+      }
+    } catch (err: any) {
+      console.error(`  [-] Failed to refund Agent ${i}:`, err.message || err);
+    }
   }
 
   console.log("\nPoC simulation complete.");

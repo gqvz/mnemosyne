@@ -69,6 +69,7 @@ export const DecisionPayloadSchema = z.object({
   rationale: z.string(),
   parent_observations: z.array(z.string()),
   target_market: z.string().optional(),
+  parent_reflections: z.array(z.string()).optional(),
 });
 
 export type DecisionPayload = z.infer<typeof DecisionPayloadSchema>;

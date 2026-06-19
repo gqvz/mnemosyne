@@ -6,6 +6,8 @@ export type SortOrder = 'newest' | 'oldest' | 'by_agent';
 interface GridViewProps {
   memories: MemoryIndex[];
   selectedId: string | null;
+  highlightedIds: Set<string>;
+  replayIds: Set<string>;
   onSelect: (memory: MemoryIndex) => void;
   sortOrder: SortOrder;
 }
@@ -17,7 +19,7 @@ const TYPE_COLORS = {
   reflection: '#d2a8ff',
 };
 
-export default function GridView({ memories, selectedId, onSelect, sortOrder }: GridViewProps) {
+export default function GridView({ memories, selectedId, highlightedIds, replayIds, onSelect, sortOrder }: GridViewProps) {
   const sortedMemories = [...memories].sort((a, b) => {
     if (sortOrder === 'newest') return b.timestamp - a.timestamp;
     if (sortOrder === 'oldest') return a.timestamp - b.timestamp;
@@ -30,8 +32,18 @@ export default function GridView({ memories, selectedId, onSelect, sortOrder }: 
       <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }} role="list">
         {sortedMemories.map(m => {
           const isSelected = m.blob_id === selectedId;
+          const hasSelection = selectedId !== null;
+          const isHighlighted = highlightedIds.has(m.blob_id);
+          const isRevealed = replayIds.has(m.blob_id);
           const typeStr = getMemoryType(m.memory_type);
           const typeColor = TYPE_COLORS[typeStr];
+          
+          let cardBorder = typeColor + '66';
+          if (hasSelection && isHighlighted) {
+            cardBorder = isRevealed ? (isSelected ? '#ffffff' : typeColor) : '#30363d';
+          } else if (isSelected) {
+            cardBorder = '#ffffff';
+          }
           
           return (
             <div
@@ -43,7 +55,8 @@ export default function GridView({ memories, selectedId, onSelect, sortOrder }: 
               className="flex flex-col rounded-sm cursor-pointer transition-all duration-200 active:scale-[0.98] border"
               style={{
                 backgroundColor: isSelected ? '#161b22' : '#0d1117',
-                border: `1px solid ${isSelected ? typeColor : typeColor + '66'}`,
+                border: `1px solid ${cardBorder}`,
+                opacity: hasSelection ? (isHighlighted ? (isRevealed ? 1 : 0.5) : 0.25) : 1,
               }}
               onMouseEnter={(e) => {
                 if (!isSelected) {
@@ -74,9 +87,17 @@ export default function GridView({ memories, selectedId, onSelect, sortOrder }: 
                 </div>
                 
                 <div className="text-[#c9d1d9] font-semibold text-sm mt-1 truncate">
-                  {m.blob_id}
+                  <a
+                    href={m.suiscan_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="hover:text-accent transition-colors"
+                  >
+                    {m.blob_id}
+                  </a>
                 </div>
-                <div style={{ color: typeColor, fontSize: 11, marginTop: 2 }}>
+                <div className="truncate" style={{ color: typeColor, fontSize: 11, marginTop: 2 }}>
                   {m.agent_address}
                 </div>
               </div>

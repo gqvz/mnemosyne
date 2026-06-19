@@ -26,9 +26,8 @@ export async function storeMemoryOnWalrus(
   memwalConfig?: MemWalConfig,
 ): Promise<{ blobId: string; blobObjectId: string }> {
   const memwal = createMemWal(client, memwalConfig);
-
   console.log(`[MemWal SDK] Uploading memory to MemWal Relayer...`);
-  const result = await memwal.rememberAndWait(content, client.namespaceId, { timeoutMs: 90000, pollIntervalMs: 5000 });
+  const result = await memwal.rememberAndWait(content, client.namespaceId, { timeoutMs: 120000, pollIntervalMs: 5000 });
   return {
     blobId: result.blob_id,
     blobObjectId: result.id,
@@ -40,16 +39,11 @@ export async function readMemoryFromWalrus(
   blobId: string,
   memwalConfig?: MemWalConfig,
 ): Promise<string> {
-  // Fetch via MemWal recall to ensure the blob is decrypted by SEAL.
-  // We use a generic query to fetch the latest memories in the namespace.
-
-  // Fallback: search via MemWal recall using the blobId as the query term.
   const memwal = createMemWal(client, memwalConfig);
-
   const recalled = await memwal.recall(blobId, { limit: 200, namespace: client.namespaceId });
   const memory = recalled.results.find((m: any) => m.blob_id === blobId);
   if (!memory) {
-    throw new Error(`Memory with blobId ${blobId} not found in Walrus aggregator or MemWal index`);
+    throw new Error(`Memory with blobId ${blobId} not found in MemWal index`);
   }
   return memory.text;
 }

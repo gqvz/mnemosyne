@@ -6,6 +6,8 @@ import type { MemoryIndex } from '../types';
 interface MemoryGraphProps {
   memories: MemoryIndex[];
   selectedId: string | null;
+  highlightedIds: Set<string>;
+  replayIds: Set<string>;
   onSelect: (memory: MemoryIndex) => void;
 }
 
@@ -31,10 +33,17 @@ interface EdgeDatum extends d3.SimulationLinkDatum<NodeDatum> {
   target: string | NodeDatum;
 }
 
-export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGraphProps) {
+export default function MemoryGraph({ memories, selectedId, highlightedIds, replayIds, onSelect }: MemoryGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [hoveredNode, setHoveredNode] = useState<{ x: number; y: number; memory: MemoryIndex } | null>(null);
+  const [resizeTick, setResizeTick] = useState(0);
+
+  useEffect(() => {
+    const onResize = () => setResizeTick(t => t + 1);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const { initialNodes, initialLinks } = useMemo(() => {
     // 1. Build basic nodes and links
@@ -64,11 +73,15 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
     const memo: Record<string, number> = {};
     function computeDepth(node: NodeDatum): number {
       if (memo[node.id] !== undefined) return memo[node.id];
+      // Set sentinel before recursing to break cycles
+      memo[node.id] = 0;
       const parents = links.filter(e => e.target === node.id);
-      if (parents.length === 0) { memo[node.id] = 0; return 0; }
-      const maxParentDepth = Math.max(...parents.map(e => 
-        computeDepth(nodes.find(n => n.id === e.source)!)
-      ));
+      const maxParentDepth = parents.length === 0
+        ? -1
+        : Math.max(...parents.map(e => {
+            const parent = nodes.find(n => n.id === e.source);
+            return parent ? computeDepth(parent) : -1;
+          }));
       memo[node.id] = maxParentDepth + 1;
       return memo[node.id];
     }
@@ -113,11 +126,11 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
     const defs = svg.append('defs');
     
     defs.selectAll('marker')
-      .data(['arrow'])
+      .data(['arrow-graph'])
       .join('marker')
       .attr('id', String)
       .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 58) // offset for NODE_W/2 = 50 + marker + stroke = ~58
+      .attr('refX', 10)
       .attr('refY', 0)
       .attr('markerWidth', 6)
       .attr('markerHeight', 6)
@@ -147,10 +160,11 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       .selectAll('path')
       .data(edges)
       .join('path')
+      .attr('class', 'edge-path')
       .attr('fill', 'none')
       .attr('stroke', '#6e7681')
       .attr('stroke-width', 1.5)
-      .attr('marker-end', 'url(#arrow)');
+      .attr('marker-end', 'url(#arrow-graph)');
 
     const nodeG = innerG.append('g')
       .selectAll<SVGGElement, NodeDatum>('.node')
@@ -219,8 +233,24 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
         edgeSelection.attr('d', (e: EdgeDatum) => {
           const s = e.source as NodeDatum;
           const t = e.target as NodeDatum;
-          const mx = (s.x! + t.x!) / 2;
-          return `M${s.x},${s.y} C${mx},${s.y} ${mx},${t.y} ${t.x},${t.y}`;
+          
+          const dx = s.x! - t.x!;
+          const dy = s.y! - t.y!;
+          
+          let targetX = t.x!;
+          let targetY = t.y!;
+          
+          if (dx !== 0 || dy !== 0) {
+            const w = t.width || 100;
+            const h = t.height || 26;
+            const scaleX = (w / 2) / Math.abs(dx);
+            const scaleY = (h / 2) / Math.abs(dy);
+            const scale = Math.min(scaleX, scaleY);
+            targetX = t.x! + dx * scale;
+            targetY = t.y! + dy * scale;
+          }
+          
+          return `M${s.x},${s.y} L${targetX},${targetY}`;
         });
 
         nodeG.attr('transform', d => `translate(${d.x},${d.y})`);
@@ -250,18 +280,72 @@ export default function MemoryGraph({ memories, selectedId, onSelect }: MemoryGr
       simulation.stop();
     };
 
-  }, [initialNodes, initialLinks, onSelect]);
+  }, [initialNodes, initialLinks, onSelect, resizeTick]);
 
   useEffect(() => {
     if (!containerRef.current) return;
     const svg = d3.select(containerRef.current).select('svg');
     if (svg.empty()) return;
 
-    svg.selectAll('.node rect')
-      .attr('stroke', d => (d as NodeDatum).id === selectedId ? '#ffffff' : (d as NodeDatum).typeColor)
-      .attr('stroke-width', d => (d as NodeDatum).id === selectedId ? 2.5 : 1)
-      .attr('filter', d => (d as NodeDatum).id === selectedId ? `url(#glow-${(d as NodeDatum).typeStr})` : null);
-  }, [selectedId]);
+    const hasSelection = selectedId !== null;
+
+    svg.selectAll<SVGGElement, NodeDatum>('.node')
+      .style('opacity', d => {
+        if (!hasSelection) return 1;
+        return highlightedIds.has(d.id) ? 1 : 0.2;
+      });
+
+    svg.selectAll<SVGRectElement, NodeDatum>('.node rect')
+      .attr('stroke', d => {
+        if (!hasSelection) return d.typeColor;
+        if (highlightedIds.has(d.id)) {
+          if (replayIds.has(d.id)) {
+            return d.id === selectedId ? '#ffffff' : d.typeColor;
+          }
+          return '#30363d'; // Unrevealed nodes get a dark gray outline
+        }
+        return d.typeColor;
+      })
+      .attr('stroke-width', d => {
+        if (!hasSelection) return 1;
+        if (d.id === selectedId && replayIds.has(d.id)) return 2.5;
+        if (highlightedIds.has(d.id)) {
+          return replayIds.has(d.id) ? 2.5 : 1.0;
+        }
+        return 1;
+      })
+      .attr('filter', d => {
+        if (hasSelection && highlightedIds.has(d.id) && replayIds.has(d.id)) {
+          return d.id === selectedId ? `url(#glow-${d.typeStr})` : null;
+        }
+        return null;
+      });
+
+    svg.selectAll<SVGPathElement, EdgeDatum>('.edge-path')
+      .style('opacity', e => {
+        if (!hasSelection) return 1;
+        const sourceId = typeof e.source === 'string' ? e.source : (e.source as NodeDatum).id;
+        const targetId = typeof e.target === 'string' ? e.target : (e.target as NodeDatum).id;
+        return (replayIds.has(sourceId) && replayIds.has(targetId)) ? 1 : 0.15;
+      })
+      .attr('stroke', e => {
+        if (!hasSelection) return '#6e7681';
+        const sourceId = typeof e.source === 'string' ? e.source : (e.source as NodeDatum).id;
+        const targetId = typeof e.target === 'string' ? e.target : (e.target as NodeDatum).id;
+        if (replayIds.has(sourceId) && replayIds.has(targetId)) {
+          const targetNode = initialNodes.find(n => n.id === targetId);
+          return targetNode?.typeColor || '#6e7681';
+        }
+        return '#30363d';
+      })
+      .attr('stroke-width', e => {
+        if (!hasSelection) return 1.5;
+        const sourceId = typeof e.source === 'string' ? e.source : (e.source as NodeDatum).id;
+        const targetId = typeof e.target === 'string' ? e.target : (e.target as NodeDatum).id;
+        return (replayIds.has(sourceId) && replayIds.has(targetId)) ? 2.5 : 1.0;
+      });
+
+  }, [selectedId, highlightedIds, replayIds, initialNodes]);
 
   return (
     <div className="w-full h-full bg-bg-center relative overflow-hidden text-[13px]">

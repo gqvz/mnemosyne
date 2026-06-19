@@ -53,8 +53,8 @@ export class MnemosyneClient {
     try {
       const balance = await this.client.getBalance({ owner: this.address });
       const balanceVal = Number(balance.totalBalance);
-      if (balanceVal < 50000000) {
-        tx.setGasBudget(Math.min(balanceVal, 10000000));
+      if (balanceVal < 200000000) {
+        tx.setGasBudget(Math.max(1000000, Math.min(balanceVal - 5000000, 80000000)));
       }
     } catch {
       // ignore if budget already set or query fails
@@ -255,28 +255,40 @@ export class MnemosyneClient {
     return (obj.data.content as { fields?: Record<string, unknown> }).fields || null;
   }
 
+  async queryEventsWithRetry(params: { query: any; limit: number; order: "ascending" | "descending" }, retries = 5, delayMs = 1500): Promise<any> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await this.client.queryEvents(params);
+      } catch (err: any) {
+        if (attempt === retries) throw err;
+        console.warn(`[Client] queryEvents failed (attempt ${attempt}/${retries}): ${err.message || err}. Retrying in ${delayMs * attempt}ms...`);
+        await this.sleep(delayMs * attempt);
+      }
+    }
+  }
+
   async queryMemoryEvents(limit: number = 20, namespaceId?: string): Promise<Array<Record<string, unknown>>> {
-    const events = await this.client.queryEvents({
+    const events = await this.queryEventsWithRetry({
       query: { MoveEventType: `${this.packageId}::memory::MemoryWritten` },
       limit,
       order: "descending",
     });
-    let data = events.data.map((e) => e.parsedJson as Record<string, unknown>);
+    let data = events.data.map((e: any) => e.parsedJson as Record<string, unknown>);
     if (namespaceId) {
-      data = data.filter((e) => String(e.namespace_id) === namespaceId);
+      data = data.filter((e: any) => String(e.namespace_id) === namespaceId);
     }
     return data;
   }
 
   async queryClaimEvents(limit: number = 20, namespaceId?: string): Promise<Array<Record<string, unknown>>> {
-    const events = await this.client.queryEvents({
+    const events = await this.queryEventsWithRetry({
       query: { MoveEventType: `${this.packageId}::memory::MemoryClaimed` },
       limit,
       order: "descending",
     });
-    let data = events.data.map((e) => e.parsedJson as Record<string, unknown>);
+    let data = events.data.map((e: any) => e.parsedJson as Record<string, unknown>);
     if (namespaceId) {
-      data = data.filter((e) => String(e.namespace_id) === namespaceId);
+      data = data.filter((e: any) => String(e.namespace_id) === namespaceId);
     }
     return data;
   }

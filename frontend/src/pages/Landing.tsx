@@ -175,7 +175,7 @@ export default function Landing() {
           <span className="footer-sep">·</span>
           <span className="footer-sub">sui overflow 2026 · walrus track</span>
           <div className="footer-links">
-            <a href="https://github.com/sui-overflow/mnemosyne" target="_blank" rel="noreferrer">github</a>
+            <a href="https://github.com/gqvz/mnemosyne" target="_blank" rel="noreferrer">github</a>
             <Link to="/browser">launch app</Link>
             <a href="#" style={{ color: '#484f58', cursor: 'default' }} title={LIVE_PACKAGE_ID}>pkg: {LIVE_PACKAGE_ID.slice(0, 6)}...{LIVE_PACKAGE_ID.slice(-4)}</a>
           </div>

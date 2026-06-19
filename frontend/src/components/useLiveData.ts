@@ -20,6 +20,8 @@ function bytesToUtf8(raw: unknown): string {
   return "";
 }
 
+const parentMemoriesCache = new Map<string, string[]>();
+
 export function useMemories(namespaceId?: string) {
   return useQuery<MemoryIndex[]>({
     queryKey: ["memories", namespaceId],
@@ -43,31 +45,56 @@ export function useMemories(namespaceId?: string) {
           return String(parsed.namespace_id) === namespaceId;
         });
 
-        return filteredEvents.map((e) => {
-          const parsed = e.parsedJson as Record<string, unknown>;
-          const blobId = bytesToUtf8(parsed.blob_id);
-          const contentHashBytes = (parsed.content_hash as number[]) || [];
-          const contentHash = contentHashBytes.length > 0
-            ? contentHashBytes.map((b) => b.toString(16).padStart(2, "0")).join("")
-            : "0x...";
-          const memoryType = (parsed.memory_type as number) ?? 0;
-          const agentAddr = String(parsed.agent_id || "unknown");
-          const ts = Number(parsed.timestamp_ms || Date.now());
-          const encrypted = true;
+        const memoriesWithResolvedParents = await Promise.all(
+          filteredEvents.map(async (e) => {
+            const parsed = e.parsedJson as Record<string, unknown>;
+            const blobId = bytesToUtf8(parsed.blob_id);
+            const contentHashBytes = (parsed.content_hash as number[]) || [];
+            const contentHash = contentHashBytes.length > 0
+              ? contentHashBytes.map((b) => b.toString(16).padStart(2, "0")).join("")
+              : "0x...";
+            const memoryType = (parsed.memory_type as number) ?? 0;
+            const agentAddr = String(parsed.agent_id || "unknown");
+            const ts = Number(parsed.timestamp_ms || Date.now());
+            const encrypted = true;
 
-          const parentMemoriesBytes = (parsed.parent_memories as number[][]) || [];
-          const parentMemories = parentMemoriesBytes.map(bytes => bytesToUtf8(bytes)).filter(Boolean);
+            const parentMemoriesBytes = (parsed.parent_memories as number[][]) || [];
+            let parentMemories = parentMemoriesBytes.map(bytes => bytesToUtf8(bytes)).filter(Boolean);
 
-          return {
-            blob_id: blobId || `mem-${e.id.txDigest.slice(0, 8)}`,
-            content_hash: contentHash,
-            memory_type: memoryType,
-            parent_memories: parentMemories,
-            is_encrypted: encrypted,
-            agent_address: agentAddr,
-            timestamp: ts,
-          };
-        });
+            if (parentMemories.length === 0 && blobId) {
+              if (parentMemoriesCache.has(blobId)) {
+                parentMemories = parentMemoriesCache.get(blobId)!;
+              } else {
+                // Fetch asynchronously from local backend in the background and cache it.
+                // It will be picked up on the next refetch interval poll.
+                fetch(`/api/memory/${namespaceId}/${blobId}`)
+                  .then(res => res.json())
+                  .then(data => {
+                    try {
+                      const parsedMem = JSON.parse(data.text);
+                      if (parsedMem && Array.isArray(parsedMem.parent_memories)) {
+                        parentMemoriesCache.set(blobId, parsedMem.parent_memories);
+                      }
+                    } catch {}
+                  })
+                  .catch(() => {});
+              }
+            }
+
+            return {
+              blob_id: blobId || `mem-${e.id.txDigest.slice(0, 8)}`,
+              content_hash: contentHash,
+              memory_type: memoryType,
+              parent_memories: parentMemories,
+              is_encrypted: encrypted,
+              agent_address: agentAddr,
+              timestamp: ts,
+              suiscan_url: `https://suiscan.xyz/testnet/tx/${e.id.txDigest}`,
+            };
+          })
+        );
+
+        return memoriesWithResolvedParents;
       } catch (err) {
         console.error("Failed to fetch live data:", err);
         return [];

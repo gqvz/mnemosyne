@@ -4,8 +4,8 @@
   "description": "Thread-safe multi-agent trading PoC using the Mnemosyne SDK",
   "type": "module",
   "scripts": {
-    "start": "node --loader ts-node/esm src/index.ts",
-    "dev": "tsx src/index.ts",
+    "start": "node --dns-result-order=ipv4first --loader ts-node/esm src/index.ts",
+    "dev": "node --dns-result-order=ipv4first node_modules/.bin/tsx src/index.ts",
     "build": "tsc"
   },
   "dependencies": {
